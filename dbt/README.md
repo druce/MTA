@@ -1,4 +1,6 @@
-Welcome to your new dbt project!
+### MTA dbt project
+- in parent directory, build.sh should download raw data from MTA and build the database
+- requires dbt, DuckDB, Anaconda, pandas, see requirements.txt
 
 ### Using the starter project
 
