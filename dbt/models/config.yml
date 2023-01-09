@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: download_data
+
+    # Document within the same codebase
+    description: python model to download data and return mta_raw table
+
+    # Configure in ways that feel intuitive and familiar
+    config:
+      materialized: table
+      tags: ['python']
