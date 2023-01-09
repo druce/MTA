@@ -129,5 +129,24 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.vscode/
+logs/
+
 downloads/*.txt
 *.pickle
+*.db

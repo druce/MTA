@@ -13,6 +13,9 @@ import pandas as pd
 def model(dbt, session):
 
     BASEDIR = os.getenv('BASEDIR')
+    if not BASEDIR:
+        print("BASEDIR environment variable not defined, exiting")
+        exit(1)
     DOWNLOADDIR = os.getenv('DATADIR')
     DATADIR = "%s/%s" % (BASEDIR, DOWNLOADDIR)
     PREFIX = "http://web.mta.info/developers/data/nyct/turnstile/turnstile_"

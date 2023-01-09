@@ -6,8 +6,11 @@ import subprocess
 import pandas as pd
 import duckdb
 
-CURRENTFILE = os.path.basename(__file__)
 BASEDIR = os.getenv('BASEDIR')
+if not BASEDIR:
+    print("BASEDIR environment variable not defined, exiting")
+    exit(1)
+CURRENTFILE = os.path.basename(__file__)
 DOWNLOADDIR = os.getenv('DATADIR')
 DATADIR = "%s/%s" % (BASEDIR, DOWNLOADDIR)
 DBFILE = os.getenv('DBFILE')
