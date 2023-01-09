@@ -1,4 +1,4 @@
-# load data from downloads into mta_raw table
+# load data from downloads into mta.mta_raw table
 from time import strftime
 import os
 import subprocess
@@ -33,12 +33,15 @@ def model(dbt, session):
 
     os.chdir(BASEDIR)
 
-    log("Starting data load in %s" % os.getcwd())
-    log("Loading from %s into %s/%s" % (DATADIR, BASEDIR, DBFILE))
-    log("Creating mta_raw table")
+    log("Starting data ingestion in %s" % os.getcwd())
+    log("Ingesting from %s into %s/%s" % (DATADIR, BASEDIR, DBFILE))
+    log("Creating mta.mta_raw table")
+
+    query = """CREATE SCHEMA IF NOT EXISTS mta"""
+    run_sql(query)
 
     query = """
-    create or replace table mta_raw(
+    create or replace table mta.mta_raw(
         "C/A" VARCHAR,
         UNIT VARCHAR,
         SCP VARCHAR,
@@ -58,7 +61,7 @@ def model(dbt, session):
     log("Found %d files in %s/%s" % (len(datafiles), os.getcwd(), DATADIR))
 
     query = """
-    insert into mta_raw SELECT * FROM read_csv('%s', \
+    insert into mta.mta_raw SELECT * FROM read_csv('%s', \
                                                     delim=',', \
                                                     header=True, \
                                                     columns={'C/A': 'VARCHAR', \
@@ -74,10 +77,9 @@ def model(dbt, session):
                                                             'EXITS': 'INTEGER',},\
                                                         dateformat='%%m/%%d/%%Y');
     """
-    log("Ingesting")
 
     for f in datafiles:
-        log("Loading %s" % f)
+        log("Ingesting %s" % f)
         run_sql(query % f)
 
     log("Verifying row count")
@@ -86,8 +88,8 @@ def model(dbt, session):
     # total lines - number of header rows
     expected = int(lastresult.split()[0]) - len(datafiles)
     log("Expected %d rows from 'wc'" % expected)
-    result = run_sql('select count(*) from mta_raw')
-    log("Loaded   %d rows into mta_raw" % result[0][0])
+    result = run_sql('select count(*) from mta.mta_raw')
+    log("Loaded   %d rows into mta.mta_raw" % result[0][0])
     log("Ended data ingestion from %s/%s" % (BASEDIR, DATADIR))
 
     final_df = pd.DataFrame({'rows': [result[0][0]]})

@@ -11,7 +11,7 @@ with final as (
             CONCAT(COALESCE(slo.STATION_DEST, CONCAT(STATION, '-', LINENAME)), COALESCE(dlo.division_dest, '')) STATION,
             ENTRY_COUNTER,
             EXIT_COUNTER
-        from mta_raw
+        from {{ source('mta', 'mta_raw') }}
         left outer join {{ref('station_label_override')}} slo
         on slo.station_src = CONCAT(STATION, '-', LINENAME)
         left outer join{{ref('division_label_override')}} dlo
