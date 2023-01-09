@@ -14,7 +14,7 @@ CURRENTFILE = os.path.basename(__file__)
 DOWNLOADDIR = os.getenv('DATADIR')
 DATADIR = "%s/%s" % (BASEDIR, DOWNLOADDIR)
 DBFILE = os.getenv('DBFILE')
-con = duckdb.connect('mta.db')
+con = duckdb.connect("%s/%s" % (BASEDIR, DBFILE))
 
 
 def model(dbt, session):
@@ -80,7 +80,7 @@ def model(dbt, session):
         log("Loading %s" % f)
         run_sql(query % f)
 
-    log("Verifying")
+    log("Verifying row count")
     result = subprocess.run(['wc', '-l', ] + datafiles, stdout=subprocess.PIPE)
     lastresult = result.stdout.splitlines()[-1]
     # total lines - number of header rows
@@ -88,7 +88,7 @@ def model(dbt, session):
     log("Expected %d rows from 'wc'" % expected)
     result = run_sql('select count(*) from mta_raw')
     log("Loaded   %d rows into mta_raw" % result[0][0])
-    log("Ended data load from %s/%s" % (BASEDIR, DATADIR))
+    log("Ended data ingestion from %s/%s" % (BASEDIR, DATADIR))
 
     final_df = pd.DataFrame({'rows': [result[0][0]]})
 

@@ -7,9 +7,9 @@ select * from entry_avg
 
 {{ config(
     post_hook = "
-        update dbt_dv.entry_avg set ENTRIES_CUTOFF = 2000 where N <= 20;
-        update dbt_dv.entry_avg set ENTRIES_CUTOFF = 2000 where isnan(ENTRIES_CUTOFF);
-        update dbt_dv.entry_avg set ENTRIES_CUTOFF = 2000 where ENTRIES_CUTOFF < 2000;
+        update entry_avg set ENTRIES_CUTOFF = 2000 where N <= 20;
+        update entry_avg set ENTRIES_CUTOFF = 2000 where isnan(ENTRIES_CUTOFF);
+        update entry_avg set ENTRIES_CUTOFF = 2000 where ENTRIES_CUTOFF < 2000;
     "
 ) }}
 

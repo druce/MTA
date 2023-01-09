@@ -7,9 +7,9 @@ select * from exit_avg
 
 {{ config(
     post_hook = "
-        update dbt_dv.exit_avg set exits_cutoff = 2000 where N <= 20;
-        update dbt_dv.exit_avg set exits_cutoff = 2000 where isnan(exits_cutoff);
-        update dbt_dv.exit_avg set exits_cutoff = 2000 where exits_cutoff < 2000;
+        update exit_avg set exits_cutoff = 2000 where N <= 20;
+        update exit_avg set exits_cutoff = 2000 where isnan(exits_cutoff);
+        update exit_avg set exits_cutoff = 2000 where exits_cutoff < 2000;
     "
 ) }}
 

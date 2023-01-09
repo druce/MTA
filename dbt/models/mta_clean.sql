@@ -17,8 +17,8 @@ select * from mta_clean
 
 {{ config(
   post_hook = "
-    update dbt_dv.mta_clean set entries_cutoff = 2000 where entries_cutoff is null;
-    update dbt_dv.mta_clean set exits_cutoff = 2000 where exits_cutoff is null;
-    delete from dbt_dv.mta_clean where entries > entries_cutoff;
-    delete from dbt_dv.mta_clean where exits > exits_cutoff;
+    update mta_clean set entries_cutoff = 2000 where entries_cutoff is null;
+    update mta_clean set exits_cutoff = 2000 where exits_cutoff is null;
+    delete from mta_clean where entries > entries_cutoff;
+    delete from mta_clean where exits > exits_cutoff;
 ") }}

@@ -1,12 +1,39 @@
 version: 2
 
+sources:
+  - name: mta
+    description: MTA turnstile data 
+    tables:
+    - name: mta_raw
+      description: raw unmodified data ingested from downloads directory
+
 models:
-  - name: download_data
-
-    # Document within the same codebase
-    description: python model to download data and return mta_raw table
-
-    # Configure in ways that feel intuitive and familiar
+  - name: mta_staging
+    description: SQL model to deduplicate, clean up timestamps and labels
     config:
       materialized: table
-      tags: ['python']
+      tags: ['SQL']
+
+  - name: mta_diff
+    description: SQL model to first-difference the turnstile counters, keeping 0 <= diff <= 7200
+    config:
+      materialized: table
+      tags: ['SQL']
+
+  - name: entry_avg
+    description: SQL model to compute ENTRIES observation counts, means and SDs by turnstile
+    config:
+      materialized: table
+      tags: ['SQL']
+
+  - name: exit_avg
+    description: SQL model to compute EXITS observation counts, means and SDs and a cutoff by turnstile
+    config:
+      materialized: table
+      tags: ['SQL']
+
+  - name: mta_clean
+    description: SQL model to drop rows based on the computed cutoff
+    config:
+      materialized: table
+      tags: ['SQL']
