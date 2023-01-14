@@ -22,3 +22,5 @@ select * from mta_clean
     delete from mta_clean where entries > entries_cutoff;
     delete from mta_clean where exits > exits_cutoff;
 ") }}
+
+{# should probably not do post_hook update, add another model with a filter and a formula #}

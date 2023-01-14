@@ -6,3 +6,10 @@ SQLAlchemy
 duckdb-engine
 # nice CLI for duckdb
 duckcli
+# standard stuff
+numpy
+scipy
+pandas
+jupyter
+matplotlib
+seaborn

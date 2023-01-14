@@ -6,6 +6,7 @@ import subprocess
 import pandas as pd
 import duckdb
 
+# should prob get these from config.yml instead of env var
 BASEDIR = os.getenv('BASEDIR')
 if not BASEDIR:
     print("BASEDIR environment variable not defined, exiting")
@@ -31,6 +32,7 @@ def model(dbt, session):
         global CURRENTFILE
         print("%s - %s - %s" % (strftime("%H:%M:%S"), CURRENTFILE, s))
 
+    dbt.config(materialized = "table")
     os.chdir(BASEDIR)
 
     log("Starting data ingestion in %s" % os.getcwd())

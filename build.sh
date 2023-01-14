@@ -4,6 +4,6 @@ export BASEDIR="/Users/drucev/projects/MTA"
 export DBFILE="mta.db"
 export DATADIR="downloads"
 
-cd $BASEDIR/dbt
+cd $BASEDIR/dbt_mta
 dbt seed
 dbt run
