@@ -32,7 +32,7 @@ def model(dbt, session):
         global CURRENTFILE
         print("%s - %s - %s" % (strftime("%H:%M:%S"), CURRENTFILE, s))
 
-    dbt.config(materialized = "table")
+    dbt.config(materialized="table")
     os.chdir(BASEDIR)
 
     log("Starting data ingestion in %s" % os.getcwd())
@@ -91,7 +91,7 @@ def model(dbt, session):
     expected = int(lastresult.split()[0]) - len(datafiles)
     log("Expected %d rows from 'wc'" % expected)
     result = run_sql('select count(*) from mta.mta_raw')
-    log("Loaded   %d rows into mta.mta_raw" % result[0][0])
+    log("Ingested %d rows into mta.mta_raw" % result[0][0])
     log("Ended data ingestion from %s/%s" % (BASEDIR, DATADIR))
 
     final_df = pd.DataFrame({'rows': [result[0][0]]})

@@ -20,31 +20,43 @@ sources:
       - name: EXIT_COUNTER
 models:
   - name: mta_staging
-    description: SQL model to deduplicate, clean up timestamps and labels
+    description: Deduplicate, clean up timestamps and labels
     config:
       materialized: table
       tags: ['SQL']
 
   - name: mta_diff
-    description: SQL model to first-difference the turnstile counters, keeping 0 <= diff <= 7200
+    description: First-difference the turnstile counters, keeping 0 <= diff <= 7200
     config:
       materialized: table
       tags: ['SQL']
 
   - name: entry_avg
-    description: SQL model to compute ENTRIES observation counts, means and SDs by turnstile
+    description: Compute ENTRIES observation counts, means and SDs by turnstile for anomaly detection
     config:
       materialized: table
       tags: ['SQL']
 
   - name: exit_avg
-    description: SQL model to compute EXITS observation counts, means and SDs and a cutoff by turnstile
+    description: Compute EXITS observation counts, means and SDs and a cutoff by turnstile
     config:
       materialized: table
       tags: ['SQL']
 
   - name: mta_clean
-    description: SQL model to drop rows based on the computed cutoff
+    description: SQL Drop rows based on the computed cutoff, merge from station_map
+    config:
+      materialized: table
+      tags: ['SQL']
+
+  - name: station_daily
+    description: Sum stations by day
+    config:
+      materialized: table
+      tags: ['SQL']
+
+  - name: comparison_summary
+    description: Compute average for reference periods
     config:
       materialized: table
       tags: ['SQL']

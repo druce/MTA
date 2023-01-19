@@ -13,7 +13,7 @@ import pandas as pd
 def model(dbt, session):
 
     print("%s - Starting download" % (strftime("%H:%M:%S")))
-    dbt.config(materialized = "table")
+    dbt.config(materialized="table")
     # read from env variables, should probably get from config.yml instead
     BASEDIR = os.getenv('BASEDIR')
     if not BASEDIR:
@@ -23,7 +23,7 @@ def model(dbt, session):
     DATADIR = "%s/%s" % (BASEDIR, DOWNLOADDIR)
     PREFIX = "http://web.mta.info/developers/data/nyct/turnstile/turnstile_"
     SUFFIX = ".txt"
-    START_DATE = date(2019, 1, 7)  # start with 1st full week of 2019
+    START_DATE = date(2019, 1, 1)
     END_DATE = date.today()
 
     os.chdir(BASEDIR)

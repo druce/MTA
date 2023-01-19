@@ -21,3 +21,20 @@ seeds:
       - name: station_dest
         tests:
           - not_null
+  - name: station_map
+    description: additional station data not in turnstile files, longitude, latitude, cbd, pretty name
+    columns:
+      - name: Station
+      - name: Complex
+      - name: Stop_ID
+      - name: Division
+      - name: Line
+      - name: Stop_Name
+      - name: Borough
+      - name: Daytime_Routes
+      - name: Structure
+      - name: Latitude
+      - name: Longitude
+      - name: North_Label
+      - name: South_Label
+      - name: CBD
