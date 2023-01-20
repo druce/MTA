@@ -1,9 +1,13 @@
-WITH entry_avg AS (
-    select station, turnstile, avg(entries) mean, stddev(entries) sd, count(*) n, avg(entries)+4*stddev(entries) entries_cutoff 
+    select 
+        station, 
+        turnstile, 
+        avg(entries) mean, 
+        stddev(entries) sd, 
+        count(*) n, 
+        avg(entries)+4*stddev(entries) entries_cutoff 
     from {{ref('mta_diff')}}
     where entries > 0
-    group by station, turnstile)
-select * from entry_avg
+    group by station, turnstile
 
 {{ config(
     post_hook = "

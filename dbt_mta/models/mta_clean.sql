@@ -1,24 +1,21 @@
-with mta_clean as (
-    select
-        date_time,
-        date,
-        mta_diff.station,
-        concat(map.stop_name, '-', map.daytime_routes, ' (', map.borough, ')') pretty_name,
-        mta_diff.turnstile,
-        entries,
-        exits,
-        latitude,
-        longitude,
-        cbd,
-        entry_avg.entries_cutoff,
-        exit_avg.exits_cutoff
-    from
-        {{ref('mta_diff')}} mta_diff
-        left outer join {{ref('entry_avg')}} entry_avg on mta_diff.station=entry_avg.station and mta_diff.turnstile=entry_avg.turnstile
-        left outer join {{ref('exit_avg')}} exit_avg on mta_diff.station=exit_avg.station and mta_diff.turnstile=exit_avg.turnstile
-        left outer join {{ref('station_map')}} map on mta_diff.station=map.station
-    )
-select * from mta_clean
+select
+    date_time,
+    date,
+    mta_diff.station,
+    concat(map.stop_name, '-', map.daytime_routes, ' (', map.borough, ')') pretty_name,
+    mta_diff.turnstile,
+    entries,
+    exits,
+    latitude,
+    longitude,
+    cbd,
+    entry_avg.entries_cutoff,
+    exit_avg.exits_cutoff
+from
+    {{ref('mta_diff')}} mta_diff
+    left outer join {{ref('entry_avg')}} entry_avg on mta_diff.station=entry_avg.station and mta_diff.turnstile=entry_avg.turnstile
+    left outer join {{ref('exit_avg')}} exit_avg on mta_diff.station=exit_avg.station and mta_diff.turnstile=exit_avg.turnstile
+    left outer join {{ref('station_map')}} map on mta_diff.station=map.station
 
 {{ config(
   post_hook = "

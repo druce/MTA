@@ -1,9 +1,13 @@
-WITH exit_avg AS (
-    select station, turnstile, avg(exits) mean, stddev(exits) sd, count(*) n, avg(exits)+4*stddev(exits) exits_cutoff 
-    from {{ref('mta_diff')}}
-    where exits > 0
-    group by station, turnstile)
-select * from exit_avg
+select 
+    station, 
+    turnstile, 
+    avg(exits) mean, 
+    stddev(exits) sd, 
+    count(*) n, 
+    avg(exits)+4*stddev(exits) exits_cutoff 
+from {{ref('mta_diff')}}
+where exits > 0
+group by station, turnstile
 
 {{ config(
     post_hook = "

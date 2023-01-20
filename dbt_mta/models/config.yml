@@ -1,25 +1,5 @@
 version: 2
 
-sources:
-  - name: mta
-    description: MTA raw turnstile data 
-    tables:
-    - name: mta_raw
-      description: raw unmodified data ingested from downloads directory. see https://data.ny.gov/api/views/py8k-a8wg/files/5c602688-3031-4f39-8f2b-d4a3cd8c3752?download=true&filename=MTA_Turnstile_Data_DataDictionary.pdf
-      columns:
-      - name: C/A
-      - name: UNIT
-      - name: SCP
-      - name: STATION
-        tests:
-          - not_null
-      - name: LINENAME
-      - name: DIVISION
-      - name: DATE
-      - name: TIME
-      - name: DESC
-      - name: ENTRY_COUNTER
-      - name: EXIT_COUNTER
 models:
   - name: mta_staging
     description: Deduplicate, clean up timestamps and labels
@@ -65,7 +45,7 @@ models:
     config:
       materialized: table
       tags: ['SQL']
-      
+
   - name: station_daily
     description: Sum stations by day
     config:
