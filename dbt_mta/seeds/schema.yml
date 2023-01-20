@@ -2,39 +2,59 @@ version: 2
 
 seeds:
   - name: division_label_override
-    description: Suffix to append to stations based on division, e.g. PATH, SIR 
+    config:
+      column_types: {division_src: varchar, division_dest: varchar}
     columns:
       - name: division_src
+        description: division label to look for in turnstile data
         tests:
           - unique
           - not_null
       - name: division_dest
+        description: replacement label for division_src in turnstile data
         tests:
           - not_null
+
   - name: station_label_override
-    description: Station label overrides to merge stations with more than 1 name 
     columns:
       - name: station_src
+        description: station label to look for in turnstile data
         tests:
           - unique
           - not_null
       - name: station_dest
+        description: replacement label for station_src in turnstile data
         tests:
           - not_null
+
   - name: station_map
-    description: additional station data not in turnstile files, longitude, latitude, cbd, pretty name
     columns:
       - name: Station
+        description: Primary key. Station label that maps to station in turnstile data as foreign key
+        tests:
+          - unique
+          - not_null
       - name: Complex
+        description: ID that groups stations that connect to one another. Most manually consolidated down to 1 station to match turnstile data with exceptions like Fulton St
       - name: Stop_ID
+        description: Unique station ID (not used, station is primary key)
       - name: Division
+        description: IRT, IND, BMT etc. (not used)
       - name: Line
+        description: Line segment (not used)
       - name: Stop_Name
+        description: Pretty name, mapped to pretty_name when present (some vals not present for e.g. PATH)
       - name: Borough
+        description: Abbreviated borough where station is located (Bx, Q etc.) 
       - name: Daytime_Routes
+        description: List of routes. Manually edited to match turnstile data.
       - name: Structure
+        description: Viaduct, grade etc. (not used)
       - name: Latitude
       - name: Longitude
       - name: North_Label
+        description: What direction is called e.g. Manhattan and Queens (not used)
       - name: South_Label
+        description: What direction is called e.g. Downtown and Brooklyn (not used)
       - name: CBD
+        description: Is station in Manhattan at or below 63

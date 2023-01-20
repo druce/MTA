@@ -33,6 +33,14 @@ clean-targets:         # directories to be removed by `dbt clean`
 # using the `{{ config(...) }}` macro.
 models:
   dbt_mta:
-    # Config indicated by + and applies to all files under models/example/
-    example:
-      +materialized: view
+    # Config indicated by + and applies to all files under models
+    +materialized: view
+
+seeds:
+  dbt_mta:
+    - name: division_label_override
+      description: Suffix to append to stations based on division, e.g. PATH, SIR 
+    - name: station_label_override
+      description: Station label overrides to merge stations with more than 1 name 
+    - name: station_map
+      description: Additional station data not in turnstile files, longitude, latitude, cbd, pretty name

@@ -10,3 +10,4 @@ export DATADIR="downloads"
 cd $BASEDIR/dbt_mta
 dbt seed
 dbt run
+dbt test

@@ -11,6 +11,8 @@ sources:
       - name: UNIT
       - name: SCP
       - name: STATION
+        tests:
+          - not_null
       - name: LINENAME
       - name: DIVISION
       - name: DATE
@@ -45,18 +47,27 @@ models:
 
   - name: mta_clean
     description: SQL Drop rows based on the computed cutoff, merge from station_map
+    columns:
+    - name: DATE_TIME
+    - name: DATE
+    - name: STATION
+      tests:
+        - not_null
+    - name: pretty_name
+    - name: TURNSTILE
+    - name: entries
+    - name: exits
+    - name: Latitude
+    - name: Longitude
+    - name: CBD
+    - name: entries_cutoff
+    - name: exits_cutoff
     config:
       materialized: table
       tags: ['SQL']
-
+      
   - name: station_daily
     description: Sum stations by day
-    config:
-      materialized: table
-      tags: ['SQL']
-
-  - name: comparison_summary
-    description: Compute average for reference periods
     config:
       materialized: table
       tags: ['SQL']

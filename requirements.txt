@@ -12,4 +12,14 @@ scipy
 pandas
 jupyter
 matplotlib
+plotly
 seaborn
+# dagster
+dagster
+dagit
+dagster-dbt
+dagster-duckdb
+dagster-duckdb-pandas
+requests
+
+
