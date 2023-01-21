@@ -120,17 +120,21 @@ RUN python -m ipykernel install --user --name=great_expectations
 
 # Install Superset in new env
 RUN conda create --name superset python=3.8
+RUN conda init
 SHELL ["conda", "run", "-n", "superset", "/bin/bash", "-c"]
 RUN conda update --all
 RUN pip install --upgrade pip
+# oh god why
 RUN pip install --force-reinstall cryptography==38.0.4
 RUN pip install --force-reinstall wtforms==2.3.3
-RUN pip install Pillow apache-superset ipykernel
+RUN pip install --force-reinstall flask==2.1
+RUN pip install duckdb-engine Pillow apache-superset ipykernel
 # add this conda environment to Jupyter
 RUN python -m ipykernel install --user --name=superset
 
 ENV FLASK_APP superset
-RUN echo Superset\nAdmin\nmyuser@mydomain123456.com\nadmin\nadmin\n | superset db upgrade
+RUN superset db upgrade
+# RUN echo \n\n\n\nadmin\nadmin\n | superset fab create-admin
 RUN superset init
 EXPOSE 8088
 
@@ -139,20 +143,23 @@ EXPOSE 8088
 RUN mkdir -p '/home/ubuntu/.jupyter'
 COPY jupyter_notebook_config.py /home/ubuntu/.jupyter/jupyter_notebook_config.py
 
+# run build.sh locally then copy mta.db to the container image
+RUN git clone https://github.com/druce/MTA
+COPY mta.db /home/ubuntu/MTA/mta.db
+RUN sudo chown ubuntu:ubuntu /home/ubuntu/MTA/mta.db
+
 COPY runservices.sh /home/ubuntu/runservices.sh
 RUN sudo chown ubuntu:ubuntu /home/ubuntu/runservices.sh && chmod +x /home/ubuntu/runservices.sh
-CMD ["bash"]
-# CMD ["/home/ubuntu/runservices.sh"]
+COPY superset.sh /home/ubuntu/MTA/superset.sh
+RUN sudo chown ubuntu:ubuntu /home/ubuntu/MTA/superset.sh && chmod +x /home/ubuntu/MTA/superset.sh
 
-# docker run -ti -p 28888:8888 -p 2222:22 -p 8080:8080 -v ~/notebooks/MTA:/mnt --rm mds /bin/bash
+CMD ["bash"]
 
 # install docker - https://docs.docker.com/get-docker/
-# docker build -t mds .
-# run image in container, mount directory where you cloned the repo
-# docker run -ti -p 28888:8888 -p 2222:22 -p 8088:8088 -v ~/projects/MTA:/mnt --rm mds /bin/bash
-# cd /mnt
-# conda active mds
-# ./build-docker.sh
-# conda active superset
-# superset run -p 8088 --with-threads --reload --debugger
-
+# docker build -t superset .
+# docker run -ti -p 28888:8888 -p 2222:22 -p 8088:8088 -v ~/projects/MTA:/mnt --rm superset /bin/bash
+# conda activate superset
+# superset fab create-admin
+# superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+# add database, choose duckdb, duckdb:////home/ubuntu/mta.db
+# import dashboard
