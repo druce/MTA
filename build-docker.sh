@@ -1,5 +1,6 @@
 # needs a ~/.dbt/profiles.yml file like the one here to point dbt to the DuckDB databae
-export BASEDIR="/Users/myuserid/projects/MTA"
+# export BASEDIR="/Users/drucev/projects/MTA"
+export BASEDIR="/mnt"
 export DBFILE="mta.db"
 export DATADIR="downloads"
 

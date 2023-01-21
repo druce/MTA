@@ -1,6 +1,6 @@
-mta:
+dbt_mta:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: '/Users/drucev/projects/MTA/mta.db'
+      path: '/mnt/mta.db'
