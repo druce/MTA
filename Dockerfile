@@ -153,7 +153,7 @@ RUN sudo chown ubuntu:ubuntu /home/ubuntu/runservices.sh && chmod +x /home/ubunt
 COPY superset.sh /home/ubuntu/MTA/superset.sh
 RUN sudo chown ubuntu:ubuntu /home/ubuntu/MTA/superset.sh && chmod +x /home/ubuntu/MTA/superset.sh
 
-CMD ["bash"]
+CMD /bin/bash /home/ubuntu/MTA/superset.sh
 
 # install docker - https://docs.docker.com/get-docker/
 # docker build -t superset .
@@ -162,4 +162,10 @@ CMD ["bash"]
 # superset fab create-admin
 # superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
 # add database, choose duckdb, duckdb:////home/ubuntu/mta.db
-# import dashboard
+# import dashboard zip file
+# ugh
+# sudo mkdir -p /Users/drucev/projects/MTA
+# sudo chown ubuntu:ubuntu /Users/drucev/projects/MTA
+# ln -s mta.db /Users/drucev/projects/MTA/mta.db
+# edit ENABLE_TEMPLATE_PROCESSING=True in  ~/anaconda3/envs/mdsib/lib/python3.8/site-packages/superset/config.py
+# docker commit to save container image, docker tag to tag it
