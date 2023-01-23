@@ -25,6 +25,8 @@ from
     delete from mta_clean where exits > exits_cutoff;
     update mta_clean set pretty_name = station where pretty_name='- ()';
     update mta_clean set cbd = 0 where cbd is null;
+    alter table mta_clean alter entries type integer;
+    alter table mta_clean alter exits type integer;
 ") }}
 
 {# should probably not do post_hook update, add another model with a filter and a formula #}

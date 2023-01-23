@@ -18,3 +18,9 @@ group by
     latitude,
     longitude,
     cbd
+
+{{ config(
+  post_hook = "
+    alter table station_daily alter entries type int;
+    alter table station_daily alter exits type int;
+") }}
