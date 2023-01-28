@@ -2,7 +2,7 @@ duckdb
 dbt-duckdb
 # Jupyter magic
 ipython-sql
-SQLAlchemy
+SQLAlchemy < 2.0.0
 duckdb-engine
 # nice CLI for duckdb
 duckcli
@@ -10,16 +10,21 @@ duckcli
 numpy
 scipy
 pandas
+jinjasql
 jupyter
 matplotlib
 plotly
 seaborn
+dash
+dash_bootstrap_components
 # dagster
-dagster
-dagit
-dagster-dbt
-dagster-duckdb
-dagster-duckdb-pandas
+# dagster
+# dagit
+# dagster-dbt
+# dagster-duckdb
+# dagster-duckdb-pandas
 requests
 
-
+# emacs /Users/drucev/opt/anaconda3/envs/dbt/lib/python3.8/site-packages/jinjasql/core.py
+# from jinja2.utils import markupsafe
+# return marskupsafe.Markup(value)

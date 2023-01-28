@@ -51,3 +51,9 @@ models:
     config:
       materialized: table
       tags: ['SQL']
+
+  - name: station_hourly
+    description: Sum stations by day and hour
+    config:
+      materialized: table
+      tags: ['SQL']
