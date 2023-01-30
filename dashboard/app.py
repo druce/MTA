@@ -1,6 +1,6 @@
 import os
 from time import strftime
-from datetime import date
+from datetime import date, datetime
 
 from collections import defaultdict
 from six import string_types
@@ -8,18 +8,25 @@ from copy import deepcopy
 
 import pandas as pd
 
+# db stuff
+import sqlalchemy
+from jinjasql import JinjaSql
+
 # import plotly
 import plotly.express as px
 from dash import Dash, html, dcc, dash_table
-from dash.dash_table import DataTable, FormatTemplate
-from dash.dash_table.Format import Format, Scheme
-
-import sqlalchemy
-from jinjasql import JinjaSql
 import dash_bootstrap_components as dbc
+from dash.dash_table import FormatTemplate
+from dash.dash_table.Format import Format, Scheme
+from dash.dependencies import Input, Output
 
-# import duckdb
+from dotenv import load_dotenv
+load_dotenv()
 
+# 3 bars for 2 bar charts
+# fix map, day of week numbers
+# look at some examples and clean up layout
+# add controls
 verbosity = 1
 
 DATADIR = os.getenv('DATADIR')
@@ -45,7 +52,7 @@ filters['dow'] = [
     'Thursday',
     'Friday',
     # 'Saturday',
-    # 'Sunday', 
+    # 'Sunday',
     ]
 filters['tod'] = [4, 8, 12, 16, 20, 24]
 filters['cbd'] = ['Y', 'N']
@@ -98,7 +105,7 @@ def get_sql_from_template(con, query, bind_params=None, verbose=False):
         query_str, query_vals = JinjaSql().prepare_query(query, params)
         print(query_str % tuple(query_vals))
 
-    # process params using ? style, run query, return dataframe 
+    # process params using ? style, run query, return dataframe
     query_str, query_vals = JinjaSql(param_style='qmark').prepare_query(query, bind_params)
     return pd.read_sql(query_str, con, params=query_vals)
 
@@ -332,14 +339,13 @@ df_entries_by_tod['entries'] /= day_count
 
 print("%f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
 
-# output the dashboard
-# show both ma and actual
 fig1 = px.line(df_entries_by_date, x="DATE", y="entries", height=360)
-fig1.update_traces(line=dict(width=2))
+fig1.update_traces(line=dict(color='#0033cc', width=2))
 fig1.update_layout(
-    paper_bgcolor="LightSteelBlue",
+    margin={'l': 10, 'r': 15, 't': 10},
+    paper_bgcolor="white",
+    # plot_bgcolor="white",
     showlegend=False,
-    plot_bgcolor="white",
     xaxis_title="Date",
     yaxis_title="Entries",
     legend_title="Legend Title",
@@ -374,11 +380,29 @@ fig1.update_layout(
     #     )
  )
 
-fig2 = px.bar(df_entries_by_dow, x="dow", y="entries", barmode="group", height=360)
+# fix sort order
+dow_map = {
+    'Monday': 0,
+    'Tuesday': 1,
+    'Wednesday': 2,
+    'Thursday': 3,
+    'Friday': 4,
+    'Saturday': 5,
+    'Sunday': 6
+}
+df_entries_by_dow['sort_order'] = df_entries_by_dow['dow'].apply(lambda d: dow_map[d])
+df_entries_by_dow = df_entries_by_dow.sort_values('sort_order').reset_index(drop=True)
+
+fig2 = px.bar(df_entries_by_dow,
+              x="dow", y="entries",
+              barmode="group",
+              height=360)
+fig2.update_traces(marker_color='#003399')
 fig2.update_layout(
-    paper_bgcolor="LightSteelBlue",
+    margin={'l': 10, 'r': 15, 't': 10},
+    paper_bgcolor="white",
+    # plot_bgcolor="white",
     showlegend=False,
-    plot_bgcolor="white",
     xaxis_title="Date",
     yaxis_title="Entries",
     legend_title="Legend Title",
@@ -386,7 +410,7 @@ fig2.update_layout(
         'tickmode': 'linear',
         'tick0': 0,
         'dtick': 1,
-        'title': None,
+        'title': 'Day of Week',
         'ticks': 'inside',
         'showgrid': True,            # thin lines in the background
         'zeroline': False,           # thick line at x=0
@@ -412,10 +436,12 @@ fig2.update_layout(
  )
 
 fig3 = px.bar(df_entries_by_tod, x="hour", y="entries", barmode="group", height=360)
+fig3.update_traces(marker_color='#003399')
 fig3.update_layout(
-    paper_bgcolor="LightSteelBlue",
+    margin={'l': 10, 'r': 15, 't': 10},
+    paper_bgcolor="white",
+    # plot_bgcolor="white",
     showlegend=False,
-    plot_bgcolor="white",
     xaxis_title="Date",
     yaxis_title="Entries",
     legend_title="Legend Title",
@@ -423,7 +449,7 @@ fig3.update_layout(
         'tickmode': 'linear',
         'tick0': 0,
         'dtick': 4,
-        'title': 'Time of day',
+        'title': 'Time of Day',
         'ticks': 'inside',
         'showgrid': True,            # thin lines in the background
         'zeroline': False,           # thick line at x=0
@@ -455,11 +481,15 @@ df['2022 vs. Pandemic'] = df['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 1
 
 table = dash_table.DataTable(
     id='datatable-interactivity',
-    columns=[{"name": 'Station', "id": 'pretty_name', "deletable": False, "selectable": False},
-                {"name": 'Avg Daily Entries', "id": 'entries', "deletable": False, "selectable": False, "type": "numeric", "format": Format(precision=0, scheme=Scheme.fixed)},
-                {"name": '%Ch From 2019', "id": 'pct_v_2019', "deletable": False, "selectable": False, "type": "numeric", "format": FormatTemplate.percentage(1)},
-                {"name": '%Ch From Pandemic', "id": 'pct_v_pandemic', "deletable": False, "selectable": False, "type": "numeric", "format": FormatTemplate.percentage(1)},
-                ],
+    columns=[
+        {"name": 'Station', "id": 'pretty_name', "deletable": False, "selectable": False},
+        {"name": 'Avg Daily Entries', "id": 'entries', "deletable": False, "selectable": False,
+         "type": "numeric", "format": Format(precision=0, scheme=Scheme.fixed)},
+        {"name": '%Ch vs. 2019', "id": 'pct_v_2019', "deletable": False, "selectable": False,
+         "type": "numeric", "format": FormatTemplate.percentage(1)},
+        {"name": '%Ch vs. Pandemic', "id": 'pct_v_pandemic', "deletable": False, "selectable": False,
+         "type": "numeric", "format": FormatTemplate.percentage(1)},
+    ],
     data=df[['pretty_name', 'entries', 'pct_v_2019', 'pct_v_pandemic']].to_dict('records'),
     editable=False,
     filter_action="native",
@@ -473,7 +503,7 @@ table = dash_table.DataTable(
     page_current=0,
     page_size=15,
     style_header={
-        'font-family': "Verdana, Calibri, Arial, Helvetica, Sans-serif",
+        'font-family': "Open Sans, Verdana, Calibri, Arial, Helvetica, Sans-serif",
         'backgroundColor': 'white',
         'fontWeight': 'bold'
     },
@@ -524,42 +554,79 @@ fig_map = px.scatter_mapbox(
 fig_map.update_layout(mapbox_style="carto-darkmatter", mapbox_accesstoken=mapbox_token)
 fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, showlegend=False)
 
+external_stylesheets = [
+    dbc.themes.SANDSTONE
+    ]
 
-app = Dash(external_stylesheets=[dbc.themes.SANDSTONE])
+
+app = Dash(__name__, external_stylesheets=external_stylesheets)
+
+markdown1 = '''
+| Avg Daily Entries: |  &nbsp; | {:,.0f} |
+| -------- | - | ---: |
+| Change vs. Pandemic: | &nbsp; &nbsp; | {:,.1f}% |
+| Change vs. 2019: | &nbsp;| {:,.1f}%'''
+
+markdown2 = '''
+| Pandemic (3/20-2/21): |  &nbsp; | {:,.0f} |
+| -------- | - | ---: |
+| Change vs. 2019: |  &nbsp; &nbsp; | {:,.1f}% |'''
+
+markdown3 = '''
+| 2019: | &nbsp; | {:,.0f} |
+| -------- | - | ---: |
+|      |         |'''
 
 app.layout = html.Div(
     [
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(html.Div(html.H1(children=['MTA Turnstile Data', html.Hr()])))
+            dbc.Col(html.Div(html.H1(className="app-header",
+                children=['MTA Turnstile Data', html.Hr()])))
             ]),
 
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(html.Div(html.H2(children='Average Daily Entries')))
+            dbc.Col(html.Div([
+                'Start date:',
+                dcc.DatePickerSingle(
+                        id='start-date-picker-single',
+                        min_date_allowed=date(2019, 1, 1),
+                        max_date_allowed=datetime.today(),
+                        initial_visible_month=date(2022, 1, 1),
+                        date=date(2022, 1, 1)
+                        ),
+                html.Div(id='output-container-date-picker-range1'),
+                 ])),
+            dbc.Col(html.Div([
+                'End date:',
+                dcc.DatePickerSingle(
+                        id='end-date-picker-single',
+                        min_date_allowed=date(2019, 1, 1),
+                        max_date_allowed=datetime.today(),
+                        initial_visible_month=date(2023, 1, 1),
+                        date=date(2023, 1, 1)
+                        ),
+                html.Div(id='output-container-date-picker-range2'),
+                 ])),
+        ]),
+
+        dbc.Row([
+            dbc.Col(xl=1),  # gutter on xl and larger
+            dbc.Col(html.Div(html.H2(children='%s to %s' % (filters['startdate'], filters['enddate']))))
             ]),
 
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(html.Div(dcc.Markdown('''
-### Selected Period: {:,.0f} Entries
-### Change from Pandemic: {:,.1f}%
-### Change from 2019: {:,.1f}%'''.format(entries_daily, entries_daily/entries_pandemic*100-100, entries_daily/entries_2019*100-100)))),
-            dbc.Col(html.Div(dcc.Markdown('''
-### Pandemic: {:,.0f} Entries
-### Change from 2019: {:,.1f}%'''.format(entries_pandemic, entries_pandemic/entries_2019*100-100)))),
-            dbc.Col(html.Div(dcc.Markdown('''
-### 2019: {:,.0f} Entries'''.format(entries_2019)))),
+            dbc.Col(html.Div(dcc.Markdown(markdown1.format(entries_daily,
+                                          entries_daily/entries_pandemic*100-100,
+                                          entries_daily/entries_2019*100-100)))),
+            dbc.Col(html.Div(dcc.Markdown(markdown2.format(entries_pandemic,
+                                          entries_pandemic/entries_2019*100-100)))),
+            dbc.Col(html.Div(dcc.Markdown(markdown3.format(entries_2019)))),
             dbc.Col(xl=1),  # gutter on xl and larger
             ]),
 
-        dbc.Row([
-            dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(children=['Daily Entries', dcc.Graph(id='entries-graph', figure=fig1)]),
-            dbc.Col(children=['Entries by Day of Week', dcc.Graph(id='entries-dow', figure=fig2)]),
-            dbc.Col(children=['Entries by 4-Hour Block', dcc.Graph(id='entries-tod', figure=fig3)]),
-            dbc.Col(xl=1),  # gutter on xl and larger
-            ]),
         # spacer
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
@@ -567,6 +634,20 @@ app.layout = html.Div(
             dbc.Col(xl=1),  # gutter on xl and larger
             ]),
 
+        dbc.Row([
+            dbc.Col(xl=1),  # gutter on xl and larger
+            dbc.Col(className="chart-header", children=['Entries by Date', ]),
+            dbc.Col(className="chart-header", children=['Avg. Entries by Day of Week']),
+            dbc.Col(className="chart-header", children=['Avg. Entries by 4-Hour Block']),
+            dbc.Col(xl=1),  # gutter on xl and larger
+            ]),
+        dbc.Row([
+            dbc.Col(xl=1),  # gutter on xl and larger
+            dbc.Col(className="chart-header", children=[dcc.Graph(id='entries-graph', figure=fig1)]),
+            dbc.Col(className="chart-header", children=[dcc.Graph(id='entries-dow', figure=fig2)]),
+            dbc.Col(className="chart-header", children=[dcc.Graph(id='entries-tod', figure=fig3)]),
+            dbc.Col(xl=1),  # gutter on xl and larger
+            ]),
         dbc.Row([
                 dbc.Col(xl=1),
                 dbc.Col(children=[
@@ -577,4 +658,28 @@ app.layout = html.Div(
     ]
 )
 
-app.run_server(debug=True)
+
+@app.callback(
+    Output('output-container-date-picker-range1', 'children'),
+    Input('start-date-picker-single', 'date'))
+def update_startdate(date_value):
+    string_prefix = 'You have selected: '
+    if date_value is not None:
+        date_object = date.fromisoformat(date_value)
+        date_string = date_object.strftime('%B %d, %Y')
+        return string_prefix + date_string
+
+
+@app.callback(
+    Output('output-container-date-picker-range2', 'children'),
+    Input('end-date-picker-single', 'date'))
+def update_enddate(date_value):
+    string_prefix = 'You have selected: '
+    if date_value is not None:
+        date_object = date.fromisoformat(date_value)
+        date_string = date_object.strftime('%B %d, %Y')
+        return string_prefix + date_string
+
+
+if __name__ == '__main__':
+    app.run_server(debug=True)

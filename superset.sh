@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 export FLASK_APP=superset
-export MAPBOX_API_KEY=<mykey>
+export MAPBOX_API_KEY=`cat .mapbox_token`
 export ENABLE_TEMPLATE_PROCESSING=True
 source /home/ubuntu/anaconda3/etc/profile.d/conda.sh
 conda activate superset
