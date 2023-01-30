@@ -21,13 +21,9 @@ from dash.dash_table.Format import Format, Scheme
 from dash.dependencies import Input, Output, State
 
 from dotenv import load_dotenv
-load_dotenv()
 
-# 3 bars for 2 bar charts
-# fix map, day of week numbers
-# look at some examples and clean up layout
-# add controls
-verbosity = 0
+load_dotenv()
+mapbox_token = os.getenv('MAPBOX_TOKEN')
 
 DATADIR = os.getenv('DATADIR')
 if not DATADIR:
@@ -41,10 +37,11 @@ if not STARTDATE:
     START_DATE = date(2022, 1, 1)
     END_DATE = date.today()
 
-mapbox_token = os.getenv('MAPBOX_TOKEN')
-
 connection_string = 'duckdb:////%s' % DATAPATH
 con = sqlalchemy.create_engine(connection_string, connect_args={'read_only': True})
+
+# print sql queries
+verbosity = 0
 
 ############################################################
 # queries to return dataframes for dashboard
@@ -539,12 +536,13 @@ def fig_map(df, mapbox_token):
         hover_data={"2022 Avg Daily Entries": True,
                     "2022 vs. Pandemic": True,
                     "2022 vs. 2019": True,
+                    "pct_v_2019": False,
                     "entries": False,
                     "Latitude": False,
                     "Longitude": False,
                     },
         size="entries", size_max=20,
-        color_continuous_scale=px.colors.sequential.Jet, color="2022 vs. 2019",
+        color_continuous_scale=px.colors.sequential.YlGnBu, color="pct_v_2019",
         zoom=10, height=480)
     fig.update_layout(mapbox_style="carto-darkmatter", mapbox_accesstoken=mapbox_token)
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, showlegend=False)
@@ -824,6 +822,7 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
     df_entries_by_station['2022 Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
     df_entries_by_station['2022 vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
     df_entries_by_station['2022 vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
+    print(df_entries_by_station.head())
 
     output_state = u'''
         You have selected "{}" to "{}", CBD "{}", DOW "{}", TOD"{}",
@@ -842,6 +841,8 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
 # ids empty on start, don't run query twice
 # remove the output
 # fix cbd so it's show cbd, show outer boroughs
+# 3 bars for 2 bar charts
+# fix map, day of week numbers
 
 
 if __name__ == '__main__':
