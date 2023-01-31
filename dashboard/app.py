@@ -182,20 +182,59 @@ def entries_by_tod(con, filters, verbose=False):
     """return dataframe of all entries by time of day, subject to filters"""
 
     query = """
-    select
-        hour,
-        sum(entries) as entries,
-    from
-        station_hourly
-    where TRUE
-    {% if startdate %} and date >= {{startdate}} {% endif %}
-    {% if enddate %} and date < {{enddate}} {% endif %}
-    {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-    {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-    {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
-
-    group by
-        hour
+        with sh as
+            (select
+                date,
+                hour,
+                sum(entries) as entries,
+            from
+                station_hourly
+            where TRUE
+                {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
+                {% if tod %} and hour in {{ tod | inclause }} {% endif %}
+                {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            group by date, hour),
+        sh1 as
+            (select
+                hour,
+                sum(entries) as entries,
+                count(*) as n,
+                sum(entries)/n as entries_per_day
+            from
+                sh
+            where TRUE
+                {% if enddate %} and date < {{enddate}} {% endif %}
+                {% if startdate %} and date >= {{startdate}} {% endif %}
+            group by
+                hour),
+        sh2019 as
+            (select
+                hour,
+                sum(entries) as entries_2019,
+                count(*) as n_2019,
+            from
+                sh
+            where date_part('year', DATE)=2019
+            group by
+                hour),
+        sh_pandemic as
+            (select
+                hour,
+                sum(entries) as entries_pandemic,
+                count(*) as n_pandemic,
+            from
+                sh
+            where date>='2020-04-01' and date <'2021-04-01'
+            group by
+                hour)
+        select
+            sh1.hour,
+            sh1.entries_per_day,
+            sh_pandemic.entries_pandemic/sh_pandemic.n_pandemic as avg_pandemic,
+            sh2019.entries_2019/sh2019.n_2019 as avg_2019
+        from
+            sh1 join sh2019 on sh1.hour = sh2019.hour
+            join sh_pandemic on sh1.hour=sh_pandemic.hour
     """
 
     return get_sql_from_template(con, query, filters, verbose)
@@ -205,20 +244,59 @@ def entries_by_dow(con, filters, verbose=False):
     """return dataframe of all entries by day of week, subject to filters"""
 
     query = """
+    with sh as
+        (select
+            date,
+            dow,
+            sum(entries) as entries,
+        from
+            station_hourly
+        where TRUE
+        {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
+        {% if tod %} and hour in {{ tod | inclause }} {% endif %}
+        {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        group by date, dow),
+    sh1 as
+        (select
+            dow,
+            sum(entries) as entries,
+            count(*) as n,
+            sum(entries)/n as entries_per_day
+        from
+            sh
+        where TRUE
+        {% if startdate %} and date >= {{startdate}} {% endif %}
+        {% if enddate %} and date < {{enddate}} {% endif %}
+        group by
+            dow),
+    sh2019 as
+        (select
+            dow,
+            sum(entries) as entries_2019,
+            count(*) as n_2019,
+        from
+            sh
+        where date_part('year', DATE)=2019
+        group by
+            dow),
+    sh_pandemic as
+        (select
+            dow,
+            sum(entries) as entries_pandemic,
+            count(*) as n_pandemic,
+        from
+            sh
+        where date>='2020-04-01' and date <'2021-04-01'
+        group by
+            dow)
     select
-        dow,
-        sum(entries) as entries,
+        sh1.dow,
+        sh1.entries_per_day,
+        sh_pandemic.entries_pandemic/sh_pandemic.n_pandemic as avg_pandemic,
+        sh2019.entries_2019/sh2019.n_2019 as avg_2019
     from
-        station_hourly
-    where TRUE
-    {% if startdate %} and date >= {{startdate}} {% endif %}
-    {% if enddate %} and date < {{enddate}} {% endif %}
-    {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-    {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-    {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
-
-    group by
-        dow
+        sh1 join sh2019 on sh1.dow = sh2019.dow
+        join sh_pandemic on sh1.dow=sh_pandemic.dow
     """
 
     return get_sql_from_template(con, query, filters, verbose)
@@ -308,7 +386,7 @@ def text_panel_1(entries_daily, entries_pandemic, entries_2019):
 
 def text_panel_2(entries_pandemic, entries_2019):
     markdown2 = '''
-| Pandemic (3/20-2/21): |  &nbsp; | {:,.0f} |
+| Pandemic (4/20-3/21): |  &nbsp; | {:,.0f} |
 | -------- | - | ---: |
 | Change vs. 2019: |  &nbsp; &nbsp; | {:,.1f}% |'''
 
@@ -380,12 +458,13 @@ def fig2(df_entries_by_dow):
     }
     df_entries_by_dow['sort_order'] = df_entries_by_dow['dow'].apply(lambda d: dow_map[d])
     df_entries_by_dow = df_entries_by_dow.sort_values('sort_order').reset_index(drop=True)
+    df_entries_by_dow.columns = ['dow', 'selection', 'pandemic', '2019', 'sort_order']
+    df_entries_by_dow = pd.melt(df_entries_by_dow[['dow', 'selection', 'pandemic', '2019']],
+                                id_vars='dow', var_name='when', value_name='entries')
 
     fig = px.bar(df_entries_by_dow,
-                 x="dow", y="entries",
-                 barmode="group",
-                 height=360)
-    fig.update_traces(marker_color='#003399')
+                 x="dow", y="entries", color='when', barmode="group", height=360)
+    # fig.update_traces(marker_color='#003399')
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
@@ -427,8 +506,13 @@ def fig2(df_entries_by_dow):
 
 def fig3(df_entries_by_tod):
 
-    fig = px.bar(df_entries_by_tod, x="hour", y="entries", barmode="group", height=360)
-    fig.update_traces(marker_color='#003399')
+    df_entries_by_tod.columns=['tod', 'selection', 'pandemic', '2019']
+    df_entries_by_tod = pd.melt(df_entries_by_tod,
+                                id_vars='tod', var_name='when', value_name='entries')
+
+    fig = px.bar(df_entries_by_tod,
+                 x="tod", y="entries", color='when', barmode="group", height=360)
+ #   fig.update_traces(marker_color='#003399')
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
@@ -584,8 +668,8 @@ def generate_content(filters=None):
     if not filters.get('enddate'):
         filters['enddate'] = '2023-01-01'
 
-    filters['pandemic_start'] = '2020-03-01'
-    filters['pandemic_end'] = '2021-03-01'
+    filters['pandemic_start'] = '2020-04-01'
+    filters['pandemic_end'] = '2021-04-01'
 
     # run the queries
     df_day_count = day_count_fn(con, filters)
@@ -606,8 +690,6 @@ def generate_content(filters=None):
     entries_2019 = df_entries_by_station['entries_2019'].sum() / day_count_2019
     entries_pandemic = df_entries_by_station['entries_pandemic'].sum() / day_count_pandemic
     df_entries_by_station['entries'] /= day_count
-    df_entries_by_dow['entries'] /= day_count
-    df_entries_by_tod['entries'] /= day_count
 
     print("%f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
 
@@ -620,7 +702,7 @@ def generate_content(filters=None):
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
             dbc.Col(html.Div(html.H1(className="app-header",
-                children=['MTA Turnstile Data', html.Hr()])))
+                children=['MTA Turnstile Data'])))
             ]),
 
         ######################################################################
@@ -684,15 +766,20 @@ def generate_content(filters=None):
                 )
             ])),
         ]),
+        # dbc.Row([
+        #     dbc.Col(xl=1),  # gutter on xl and larger
+        #     dbc.Col([
+        #         html.Button(id='submit-button-state', className='btn btn-primary', n_clicks=0, children='Submit')
+        #         ])
+        #     ]),
+        # dbc.Row([
+        #     dbc.Col(xl=1),  # gutter on xl and larger
+        #     dbc.Col(html.Div(id='output-state'))
+        #     ]),
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col([
-                html.Button(id='submit-button-state', className='btn btn-primary', n_clicks=0, children='Submit')
-                ])
-            ]),
-        dbc.Row([
+            dbc.Col(html.Hr()),
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(html.Div(id='output-state'))
             ]),
 
         ######################################################################
@@ -701,9 +788,9 @@ def generate_content(filters=None):
 
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(html.Div(text_panel_1(entries_daily, entries_pandemic, entries_2019), id="text_panel_1")),
-            dbc.Col(html.Div(text_panel_2(entries_pandemic, entries_2019), id="text_panel_2")),
-            dbc.Col(html.Div(text_panel_3(entries_2019), id="text_panel_3")),
+            dbc.Col(html.Div(id="text_panel_1")),
+            dbc.Col(html.Div(id="text_panel_2")),
+            dbc.Col(html.Div(id="text_panel_3")),
             dbc.Col(xl=1),  # gutter on xl and larger
             ]),
 
@@ -724,15 +811,15 @@ def generate_content(filters=None):
             ]),
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(fig1(df_entries_by_date), className="chart-header", id='fig1'),
-            dbc.Col(fig2(df_entries_by_dow), className="chart-header", id='fig2'),
-            dbc.Col(fig3(df_entries_by_tod), className="chart-header", id='fig3'),
+            dbc.Col(className="chart-header", id='fig1'),
+            dbc.Col(className="chart-header", id='fig2'),
+            dbc.Col(className="chart-header", id='fig3'),
             dbc.Col(xl=1),  # gutter on xl and larger
             ]),
         dbc.Row([
                 dbc.Col(xl=1),
-                dbc.Col([fig_table(df_entries_by_station), html.Div(id='datatable-interactivity-container')], id='fig_table_parent'),
-                dbc.Col(["Station map, size=entries, color=%ch from 2019", fig_map(df_entries_by_station, mapbox_token),], id='fig_map_parent'),
+                dbc.Col(id='fig_table_parent'),
+                dbc.Col(id='fig_map_parent'),
                 dbc.Col(xl=1),
                 ]),
     ]
@@ -747,7 +834,8 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
 app.layout = html.Div(generate_content(), id='div_toplevel')
 
 
-@app.callback(Output('output-state', 'children'),
+@app.callback(
+            # Output('output-state', 'children'),
               Output('text_panel_1', 'children'),
               Output('text_panel_2', 'children'),
               Output('text_panel_3', 'children'),
@@ -756,14 +844,15 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               Output('fig3', 'children'),
               Output('fig_table_parent', 'children'),
               Output('fig_map_parent', 'children'),
-              Input('submit-button-state', 'n_clicks'),
-              State('start-date-picker-single', 'date'),
-              State('end-date-picker-single', 'date'),
-              State('checklist-CBD', 'value'),
-              State('checklist-dow', 'value'),
-              State('checklist-tod', 'value'),
+            #   Input('submit-button-state', 'n_clicks'),
+              Input('start-date-picker-single', 'date'),
+              Input('end-date-picker-single', 'date'),
+              Input('checklist-CBD', 'value'),
+              Input('checklist-dow', 'value'),
+              Input('checklist-tod', 'value'),
               )
-def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
+# def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
+def update_output(startdate, enddate, cbd, dow, tod):
 
     filters = defaultdict(str)
     filters['startdate'] = startdate
@@ -794,8 +883,8 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
     if not filters.get('cbd'):
         filters['cbd'] = ['Y', 'N']
 
-    filters['pandemic_start'] = '2020-03-01'
-    filters['pandemic_end'] = '2021-03-01'
+    filters['pandemic_start'] = '2020-04-01'
+    filters['pandemic_end'] = '2021-04-01'
 
     # run the queries
     df_day_count = day_count_fn(con, filters)
@@ -816,8 +905,6 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
     entries_2019 = df_entries_by_station['entries_2019'].sum() / day_count_2019
     entries_pandemic = df_entries_by_station['entries_pandemic'].sum() / day_count_pandemic
     df_entries_by_station['entries'] /= day_count
-    df_entries_by_dow['entries'] /= day_count
-    df_entries_by_tod['entries'] /= day_count
 
     print("callback %f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
 
@@ -826,10 +913,10 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
     df_entries_by_station['vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
     # print(df_entries_by_station.head())
 
-    output_state = u'''
-        You have selected "{}" to "{}", CBD "{}", DOW "{}", TOD"{}",
-    '''.format(startdate, enddate, cbd, dow, tod)
-    return [output_state,
+    # output_state = u'''
+    #     You have selected "{}" to "{}", CBD "{}", DOW "{}", TOD"{}",
+    # '''.format(startdate, enddate, cbd, dow, tod)
+    return [
             text_panel_1(entries_daily, entries_pandemic, entries_2019),
             text_panel_2(entries_pandemic, entries_2019),
             text_panel_3(entries_2019),
@@ -839,12 +926,9 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
             [fig_table(df_entries_by_station), html.Div(id='datatable-interactivity-container')],
             ["Station map, size=entries, color=%ch from 2019", fig_map(df_entries_by_station, mapbox_token),],
             ]
-# fix the map
+# check e.g. q line this year
 # ids empty on start, don't run query twice
-# remove the output
 # fix cbd so it's show cbd, show outer boroughs
-# 3 bars for 2 bar charts
-# fix map, day of week numbers
 
 
 if __name__ == '__main__':
