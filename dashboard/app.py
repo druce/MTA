@@ -38,6 +38,7 @@ if not STARTDATE:
     END_DATE = date.today()
 
 connection_string = 'duckdb:////%s' % DATAPATH
+print(connection_string)
 con = sqlalchemy.create_engine(connection_string, connect_args={'read_only': True})
 
 # print sql queries
@@ -533,9 +534,10 @@ def fig_map(df, mapbox_token):
         lat="Latitude",
         lon="Longitude",
         hover_name="pretty_name",
-        hover_data={"2022 Avg Daily Entries": True,
-                    "2022 vs. Pandemic": True,
-                    "2022 vs. 2019": True,
+
+        hover_data={"Avg Daily Entries": True,
+                    "vs. Pandemic": True,
+                    "vs. 2019": True,
                     "pct_v_2019": False,
                     "entries": False,
                     "Latitude": False,
@@ -609,9 +611,9 @@ def generate_content(filters=None):
 
     print("%f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
 
-    df_entries_by_station['2022 Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
-    df_entries_by_station['2022 vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
-    df_entries_by_station['2022 vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
+    df_entries_by_station['Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
+    df_entries_by_station['vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
+    df_entries_by_station['vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
 
     return [
         # title
@@ -819,10 +821,10 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
 
     print("callback %f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
 
-    df_entries_by_station['2022 Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
-    df_entries_by_station['2022 vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
-    df_entries_by_station['2022 vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
-    print(df_entries_by_station.head())
+    df_entries_by_station['Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
+    df_entries_by_station['vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
+    df_entries_by_station['vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
+    # print(df_entries_by_station.head())
 
     output_state = u'''
         You have selected "{}" to "{}", CBD "{}", DOW "{}", TOD"{}",
@@ -846,4 +848,4 @@ def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, host='0.0.0.0')
