@@ -734,6 +734,7 @@ def generate_content(filters=None):
             dbc.Col(html.Div([
                 dcc.Dropdown(stations, None, id='dropdown-station', multi=True),
             ])),
+            dbc.Col(xl=1),  # gutter on xl and larger
         ]),
 
         # dbc.Row([
@@ -803,6 +804,7 @@ def generate_content(filters=None):
 stations = stations_fn(con, defaultdict(str), verbosity)["STATION"].to_list()
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
+app.title = "Druce's MTA Dashboard"
 
 app.layout = html.Div(generate_content(), id='div_toplevel')
 
@@ -905,9 +907,9 @@ def update_output(startdate, enddate, cbd, dow, tod, sta):
             ["Station map, size=entries, color=%ch from 2019", fig_map(df_entries_by_station, mapbox_token),],
             ]
 # check e.g. q line this year
-# fix cbd so it's show cbd, show outer boroughs
-# bar colors
+# fix spacing of e.g. checkboxes
+# check update on Saturdays
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0')
+    app.run_server(debug=False, host='0.0.0.0')
