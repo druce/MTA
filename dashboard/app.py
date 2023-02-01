@@ -32,11 +32,6 @@ if not DATADIR:
 DATAFILE = os.getenv('DATAFILE')
 DATAPATH = "%s/%s" % (DATADIR, DATAFILE)
 
-STARTDATE = os.getenv('STARTDATE')
-if not STARTDATE:
-    START_DATE = date(2022, 1, 1)
-    END_DATE = date.today()
-
 connection_string = 'duckdb:////%s' % DATAPATH
 # print(connection_string)
 con = sqlalchemy.create_engine(connection_string, connect_args={'read_only': True})
@@ -47,6 +42,16 @@ verbosity = 0
 ############################################################
 # queries to return dataframes for dashboard
 ############################################################
+
+
+def stations_fn(con, filters, verbose=False):
+    """
+    return stations for dropdown
+    should probably run this query or make a smaller station table in dbt to not query many rows
+    """
+
+    query = """select distinct station from station_daily order by station;"""
+    return get_sql_from_template(con, query, filters, verbose)
 
 
 def quote_sql_string(value):
@@ -105,6 +110,8 @@ def day_count_fn(con, filters, verbose=False):
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
         {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if sta %} and station in {{ sta | inclause }} {% endif %}
+
     group by
         "date"
     )
@@ -128,6 +135,7 @@ def day_count_pandemic_fn(con, filters, verbose=False):
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
         {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if sta %} and station in {{ sta | inclause }} {% endif %}
     group by
         "date"
     )
@@ -151,6 +159,7 @@ def day_count_2019_fn(con, filters, verbose=False):
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
         {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if sta %} and station in {{ sta | inclause }} {% endif %}
     group by
         "date"
     )
@@ -171,6 +180,7 @@ def entries_by_date(con, filters, verbose=False):
     {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
     {% if tod %} and hour in {{ tod | inclause }} {% endif %}
     {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+    {% if sta %} and station in {{ sta | inclause }} {% endif %}
     group by date
     order by date
     """
@@ -193,6 +203,7 @@ def entries_by_tod(con, filters, verbose=False):
                 {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
                 {% if tod %} and hour in {{ tod | inclause }} {% endif %}
                 {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+                {% if sta %} and station in {{ sta | inclause }} {% endif %}
             group by date, hour),
         sh1 as
             (select
@@ -255,6 +266,7 @@ def entries_by_dow(con, filters, verbose=False):
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
         {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if sta %} and station in {{ sta | inclause }} {% endif %}
         group by date, dow),
     sh1 as
         (select
@@ -323,6 +335,7 @@ def entries_by_station(con, filters, verbose=False):
             {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
             {% if tod %} and hour in {{ tod | inclause }} {% endif %}
             {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            {% if sta %} and station in {{ sta | inclause }} {% endif %}
         GROUP BY
         pretty_name,
         latitude,
@@ -348,6 +361,7 @@ def entries_by_station(con, filters, verbose=False):
             {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
             {% if tod %} and hour in {{ tod | inclause }} {% endif %}
             {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            {% if sta %} and station in {{ sta | inclause }} {% endif %}
             GROUP BY pretty_name
             ORDER BY pretty_name
     ) vs2019 on vs2019.pretty_name=sd.pretty_name
@@ -359,6 +373,7 @@ def entries_by_station(con, filters, verbose=False):
             {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
             {% if tod %} and hour in {{ tod | inclause }} {% endif %}
             {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            {% if sta %} and station in {{ sta | inclause }} {% endif %}
             GROUP BY pretty_name
             ORDER BY pretty_name
     ) vspandemic on vspandemic.pretty_name=sd.pretty_name
@@ -679,11 +694,11 @@ def generate_content(filters=None):
         ]),
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col([html.Div("Manhattan below 63")], xs=2),
+            dbc.Col([html.Div("Where:")], xs=2),
             dbc.Col(html.Div([
                 dcc.Checklist(
-                    ["Yes", "No"],
-                    ["Yes", "No"],
+                    ["Manhattan below 63", "Rest of NYC"],
+                    ["Manhattan below 63", "Rest of NYC"],
                     id='checklist-CBD',
                     inline=True,
                 )
@@ -713,6 +728,14 @@ def generate_content(filters=None):
                 )
             ])),
         ]),
+        dbc.Row([
+            dbc.Col(xl=1),  # gutter on xl and larger
+            dbc.Col([html.Div("Stations:")], xs=2),
+            dbc.Col(html.Div([
+                dcc.Dropdown(stations, None, id='dropdown-station', multi=True),
+            ])),
+        ]),
+
         # dbc.Row([
         #     dbc.Col(xl=1),  # gutter on xl and larger
         #     dbc.Col([
@@ -776,6 +799,9 @@ def generate_content(filters=None):
 # run the app
 ######################################################################
 
+# global variable, only query on startup
+stations = stations_fn(con, defaultdict(str), verbosity)["STATION"].to_list()
+
 app = Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
 
 app.layout = html.Div(generate_content(), id='div_toplevel')
@@ -795,24 +821,30 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               Input('checklist-CBD', 'value'),
               Input('checklist-dow', 'value'),
               Input('checklist-tod', 'value'),
+              Input('dropdown-station', 'value'),
               )
 # def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
-def update_output(startdate, enddate, cbd, dow, tod):
+def update_output(startdate, enddate, cbd, dow, tod, sta):
 
     filters = defaultdict(str)
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
+    print(sta)
+
     # print(cbd)
+
     cbd_map = {
-        'Yes': 'Y',
-        'No': 'N',
+        'Manhattan below 63': 'Y',
+        'Rest of NYC': 'N',
     }
-    filters['cbd'] = [cbd_map[t] for t in cbd]
+    if cbd:
+        filters['cbd'] = [cbd_map[t] for t in cbd]
     # print(filters['cbd'])
 
     # print(dow)
-    filters['dow'] = dow
+    if dow:
+        filters['dow'] = dow
 
     # print(tod)
     tod_map = {
@@ -823,10 +855,11 @@ def update_output(startdate, enddate, cbd, dow, tod):
         '8:00pm': 20,
         '12:00 midnight': 24
     }
-    filters['tod'] = [tod_map[t] for t in tod]
+    if tod:
+        filters['tod'] = [tod_map[t] for t in tod]
 
-    if not filters.get('cbd'):
-        filters['cbd'] = ['Y', 'N']
+    if sta:
+        filters['sta'] = sta
 
     filters['pandemic_start'] = '2020-04-01'
     filters['pandemic_end'] = '2021-04-01'
