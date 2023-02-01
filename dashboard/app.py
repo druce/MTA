@@ -12,13 +12,13 @@ import pandas as pd
 import sqlalchemy
 from jinjasql import JinjaSql
 
-# import plotly
+import plotly
 import plotly.express as px
 from dash import Dash, html, dcc, dash_table
 import dash_bootstrap_components as dbc
 from dash.dash_table import FormatTemplate
 from dash.dash_table.Format import Format, Scheme
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output
 
 from dotenv import load_dotenv
 
@@ -38,7 +38,7 @@ if not STARTDATE:
     END_DATE = date.today()
 
 connection_string = 'duckdb:////%s' % DATAPATH
-print(connection_string)
+# print(connection_string)
 con = sqlalchemy.create_engine(connection_string, connect_args={'read_only': True})
 
 # print sql queries
@@ -463,7 +463,8 @@ def fig2(df_entries_by_dow):
                                 id_vars='dow', var_name='when', value_name='entries')
 
     fig = px.bar(df_entries_by_dow,
-                 x="dow", y="entries", color='when', barmode="group", height=360)
+                 x="dow", y="entries", color='when', barmode="group", height=360,
+                 color_discrete_sequence=plotly.colors.qualitative.Dark24)
     # fig.update_traces(marker_color='#003399')
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
@@ -506,13 +507,14 @@ def fig2(df_entries_by_dow):
 
 def fig3(df_entries_by_tod):
 
-    df_entries_by_tod.columns=['tod', 'selection', 'pandemic', '2019']
+    df_entries_by_tod.columns = ['tod', 'selection', 'pandemic', '2019']
     df_entries_by_tod = pd.melt(df_entries_by_tod,
                                 id_vars='tod', var_name='when', value_name='entries')
 
     fig = px.bar(df_entries_by_tod,
-                 x="tod", y="entries", color='when', barmode="group", height=360)
- #   fig.update_traces(marker_color='#003399')
+                 x="tod", y="entries", color='when', barmode="group", height=360,
+                 color_discrete_sequence=plotly.colors.qualitative.Dark24)
+    # fig.update_traces(marker_color='#003399')
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
@@ -642,61 +644,6 @@ def fig_map(df, mapbox_token):
 
 def generate_content(filters=None):
 
-    if filters is None:
-        filters = defaultdict(str)
-
-    if not filters.get('dow'):
-        filters['dow'] = [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-            'Sunday',
-            ]
-
-    if not filters.get('tod'):
-        filters['tod'] = [4, 8, 12, 16, 20, 24]
-
-    if not filters.get('cbd'):
-        filters['cbd'] = ['Y', 'N']
-
-    if not filters.get('startdate'):
-        filters['startdate'] = '2022-01-01'
-
-    if not filters.get('enddate'):
-        filters['enddate'] = '2023-01-01'
-
-    filters['pandemic_start'] = '2020-04-01'
-    filters['pandemic_end'] = '2021-04-01'
-
-    # run the queries
-    df_day_count = day_count_fn(con, filters)
-    day_count = df_day_count.iloc[0][0]
-    df_day_count_2019 = day_count_2019_fn(con, filters)
-    day_count_2019 = df_day_count_2019.iloc[0][0]
-    df_day_count_pandemic = day_count_pandemic_fn(con, filters)
-    day_count_pandemic = df_day_count_pandemic.iloc[0][0]
-
-    print("%d days, 2019 %d, pandemic %d" % (day_count, day_count_2019, day_count_pandemic))
-
-    df_entries_by_date = entries_by_date(con, filters, verbose=verbosity)
-    df_entries_by_tod = entries_by_tod(con, filters, verbose=verbosity)
-    df_entries_by_dow = entries_by_dow(con, filters, verbose=verbosity)
-    df_entries_by_station = entries_by_station(con, filters, verbose=verbosity)
-
-    entries_daily = df_entries_by_station['entries'].sum() / day_count
-    entries_2019 = df_entries_by_station['entries_2019'].sum() / day_count_2019
-    entries_pandemic = df_entries_by_station['entries_pandemic'].sum() / day_count_pandemic
-    df_entries_by_station['entries'] /= day_count
-
-    print("%f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
-
-    df_entries_by_station['Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
-    df_entries_by_station['vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
-    df_entries_by_station['vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
-
     return [
         # title
         dbc.Row([
@@ -712,7 +659,7 @@ def generate_content(filters=None):
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
             dbc.Col(html.Div([
-                'Start date (inclusive):',
+                'Start date (>=):',
                 dcc.DatePickerSingle(
                         id='start-date-picker-single',
                         min_date_allowed=date(2019, 1, 1),
@@ -720,7 +667,7 @@ def generate_content(filters=None):
                         initial_visible_month=date(2022, 1, 1),
                         date=date(2022, 1, 1)
                         ),
-                'End date (not inclusive):',
+                'End date (<):',
                 dcc.DatePickerSingle(
                         id='end-date-picker-single',
                         min_date_allowed=date(2019, 1, 1),
@@ -834,9 +781,7 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
 app.layout = html.Div(generate_content(), id='div_toplevel')
 
 
-@app.callback(
-            # Output('output-state', 'children'),
-              Output('text_panel_1', 'children'),
+@app.callback(Output('text_panel_1', 'children'),
               Output('text_panel_2', 'children'),
               Output('text_panel_3', 'children'),
               Output('fig1', 'children'),
@@ -844,7 +789,7 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               Output('fig3', 'children'),
               Output('fig_table_parent', 'children'),
               Output('fig_map_parent', 'children'),
-            #   Input('submit-button-state', 'n_clicks'),
+              # Input('submit-button-state', 'n_clicks'),
               Input('start-date-picker-single', 'date'),
               Input('end-date-picker-single', 'date'),
               Input('checklist-CBD', 'value'),
@@ -858,13 +803,13 @@ def update_output(startdate, enddate, cbd, dow, tod):
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
-    print(cbd)
+    # print(cbd)
     cbd_map = {
         'Yes': 'Y',
         'No': 'N',
     }
     filters['cbd'] = [cbd_map[t] for t in cbd]
-    print(cbd_map)
+    # print(filters['cbd'])
 
     # print(dow)
     filters['dow'] = dow
@@ -927,8 +872,8 @@ def update_output(startdate, enddate, cbd, dow, tod):
             ["Station map, size=entries, color=%ch from 2019", fig_map(df_entries_by_station, mapbox_token),],
             ]
 # check e.g. q line this year
-# ids empty on start, don't run query twice
 # fix cbd so it's show cbd, show outer boroughs
+# bar colors
 
 
 if __name__ == '__main__':
