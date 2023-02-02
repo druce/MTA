@@ -1,8 +1,13 @@
-.app-header {
-}
-
 .chart-header {
     font-weight: bold;
     text-align: center;
 }
 
+.mta-checklist label {
+    margin-left: 2px;
+    margin-right: 2px;
+}
+.mta-checklist input {
+    margin-left: 2px;
+    margin-right: 3px;
+}

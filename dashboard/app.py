@@ -700,6 +700,7 @@ def generate_content(filters=None):
                     ["Manhattan below 63", "Rest of NYC"],
                     ["Manhattan below 63", "Rest of NYC"],
                     id='checklist-CBD',
+                    className='mta-checklist',
                     inline=True,
                 )
             ])),
@@ -712,6 +713,7 @@ def generate_content(filters=None):
                     ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
                     ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
                     id='checklist-dow',
+                    className='mta-checklist',
                     inline=True,
                 )
             ])),
@@ -724,6 +726,7 @@ def generate_content(filters=None):
                     ["4:00am", "8:00am", "12:00 noon", "4:00pm", "8:00pm", "12:00 midnight"],
                     ["4:00am", "8:00am", "12:00 noon", "4:00pm", "8:00pm", "12:00 midnight"],
                     id='checklist-tod',
+                    className='mta-checklist',
                     inline=True,
                 )
             ])),
