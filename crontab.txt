@@ -1,1 +1,1 @@
-0 0 8 * SAT /home/streeteye/projects/MTA/build-h.sh >> /home/streeteye/projects/MTA/log/mta-build.log 2>&1
+0 14 * * SAT /home/streeteye/projects/MTA/build-h.sh >> /home/streeteye/projects/MTA/log/mta-build.log 2>&1

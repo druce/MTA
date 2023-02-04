@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+
 # needs a ~/.dbt/profiles.yml file like the one here to point dbt to the DuckDB databae
 export HOMEDIR="/home/myuserid"
 export BASEDIR="$HOMEDIR/projects/MTA"
@@ -5,6 +7,7 @@ export DBFILE="mta.db"
 export DATADIR="downloads"
 export FLASK_APP="superset"
 
+date
 # activate environment
 source $HOMEDIR/anaconda3/etc/profile.d/conda.sh
 conda activate dbt
@@ -23,6 +26,4 @@ dbt test
 
 # $BASEDIR/suid_start_plotlydash
 
-
-
-
+date
