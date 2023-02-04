@@ -78,7 +78,7 @@ def get_sql_from_template(con, query, bind_params=None, verbose=False):
     if not bind_params:
         if verbose:
             print(query)
-            return pd.read_sql(query, con, params={'read_only': True})
+        return pd.read_sql(query, con)
 
     # process bind_params
     if verbose:
@@ -109,7 +109,7 @@ def day_count_fn(con, filters, verbose=False):
         {% if enddate %} and date < {{enddate}} {% endif %}
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
 
     group by
@@ -134,7 +134,7 @@ def day_count_pandemic_fn(con, filters, verbose=False):
         date >= {{pandemic_start}} and date < {{pandemic_end}}
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
     group by
         "date"
@@ -158,7 +158,7 @@ def day_count_2019_fn(con, filters, verbose=False):
         date_part('year', DATE)=2019
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
     group by
         "date"
@@ -179,7 +179,7 @@ def entries_by_date(con, filters, verbose=False):
     {% if enddate %} and date < {{enddate}} {% endif %}
     {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
     {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-    {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+    {% if borough %} and borough in {{ borough | inclause }} {% endif %}
     {% if sta %} and station in {{ sta | inclause }} {% endif %}
     group by date
     order by date
@@ -202,7 +202,7 @@ def entries_by_tod(con, filters, verbose=False):
             where TRUE
                 {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
                 {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-                {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+                {% if borough %} and borough in {{ borough | inclause }} {% endif %}
                 {% if sta %} and station in {{ sta | inclause }} {% endif %}
             group by date, hour),
         sh1 as
@@ -265,7 +265,7 @@ def entries_by_dow(con, filters, verbose=False):
         where TRUE
         {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
         group by date, dow),
     sh1 as
@@ -323,7 +323,7 @@ def entries_by_station(con, filters, verbose=False):
     query = """
     with sd as
         (SELECT
-        pretty_name,
+        station,
         latitude,
         longitude,
         sum(entries) as entries
@@ -334,17 +334,17 @@ def entries_by_station(con, filters, verbose=False):
             {% if enddate %} and date < {{enddate}} {% endif %}
             {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
             {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-            {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            {% if borough %} and borough in {{ borough | inclause }} {% endif %}
             {% if sta %} and station in {{ sta | inclause }} {% endif %}
         GROUP BY
-        pretty_name,
+        station,
         latitude,
         longitude
         ORDER BY
-        pretty_name
+        station
         )
     select
-    sd.pretty_name,
+    sd.station,
     latitude,
     longitude,
     sd.entries,
@@ -355,28 +355,28 @@ def entries_by_station(con, filters, verbose=False):
     FROM
     sd
     LEFT OUTER JOIN (
-        SELECT pretty_name, sum(entries) entries_2019
+        SELECT station, sum(entries) entries_2019
             FROM station_hourly
             WHERE date_part('year', DATE)=2019
             {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
             {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-            {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            {% if borough %} and borough in {{ borough | inclause }} {% endif %}
             {% if sta %} and station in {{ sta | inclause }} {% endif %}
-            GROUP BY pretty_name
-            ORDER BY pretty_name
-    ) vs2019 on vs2019.pretty_name=sd.pretty_name
+            GROUP BY station
+            ORDER BY station
+    ) vs2019 on vs2019.station=sd.station
     LEFT OUTER JOIN (
-        SELECT pretty_name, sum(entries) entries_pandemic
+        SELECT station, sum(entries) entries_pandemic
             FROM station_hourly
             WHERE
             date >= {{pandemic_start}} and date < {{pandemic_end}}
             {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
             {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-            {% if cbd %} and cbd in {{ cbd | inclause }} {% endif %}
+            {% if borough %} and borough in {{ borough | inclause }} {% endif %}
             {% if sta %} and station in {{ sta | inclause }} {% endif %}
-            GROUP BY pretty_name
-            ORDER BY pretty_name
-    ) vspandemic on vspandemic.pretty_name=sd.pretty_name
+            GROUP BY station
+            ORDER BY station
+    ) vspandemic on vspandemic.station=sd.station
     """
 
     return get_sql_from_template(con, query, filters, verbose)
@@ -418,7 +418,7 @@ def text_panel_3(entries_2019):
 
 
 def fig1(df_entries_by_date):
-    fig = px.line(df_entries_by_date, x="DATE", y="entries", height=360)
+    fig = px.line(df_entries_by_date, x="date", y="entries", height=360)
     fig.update_traces(line=dict(color='#0033cc', width=2))
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
@@ -573,7 +573,7 @@ def fig_table(df):
     table = dash_table.DataTable(
         id='fig_table',
         columns=[
-            {"name": 'Station', "id": 'pretty_name', "deletable": False, "selectable": False},
+            {"name": 'Station', "id": 'station', "deletable": False, "selectable": False},
             {"name": 'Avg Daily Entries', "id": 'entries', "deletable": False, "selectable": False,
              "type": "numeric", "format": Format(precision=0, scheme=Scheme.fixed)},
             {"name": '%Ch vs. 2019', "id": 'pct_v_2019', "deletable": False, "selectable": False,
@@ -581,7 +581,7 @@ def fig_table(df):
             {"name": '%Ch vs. Pandemic', "id": 'pct_v_pandemic', "deletable": False, "selectable": False,
              "type": "numeric", "format": FormatTemplate.percentage(1)},
         ],
-        data=df[['pretty_name', 'entries', 'pct_v_2019', 'pct_v_pandemic']].to_dict('records'),
+        data=df[['station', 'entries', 'pct_v_2019', 'pct_v_pandemic']].to_dict('records'),
         editable=False,
         filter_action="native",
         sort_action="native",
@@ -605,7 +605,7 @@ def fig_table(df):
         style_cell_conditional=[
             {
                 'if': {
-                    'column_id': 'pretty_name',
+                    'column_id': 'station',
                 },
                 'font-family': "Verdana, Calibri, Arial, Helvetica, Sans-serif",
             },
@@ -634,7 +634,7 @@ def fig_map(df, mapbox_token):
         df,
         lat="Latitude",
         lon="Longitude",
-        hover_name="pretty_name",
+        hover_name="station",
 
         hover_data={"Avg Daily Entries": True,
                     "vs. Pandemic": True,
@@ -697,9 +697,9 @@ def generate_content(filters=None):
             dbc.Col([html.Div("Where:")], xs=2),
             dbc.Col(html.Div([
                 dcc.Checklist(
-                    ["Manhattan below 63", "Rest of NYC"],
-                    ["Manhattan below 63", "Rest of NYC"],
-                    id='checklist-CBD',
+                    ["Manhattan below 63 St", "Manhattan above 63 St", "Brooklyn", "Queens", "Bronx"],
+                    ["Manhattan below 63 St", "Manhattan above 63 St", "Brooklyn", "Queens", "Bronx"],
+                    id='checklist-borough',
                     className='mta-checklist',
                     inline=True,
                 )
@@ -804,7 +804,8 @@ def generate_content(filters=None):
 ######################################################################
 
 # global variable, only query on startup
-stations = stations_fn(con, defaultdict(str), verbosity)["STATION"].to_list()
+stations = stations_fn(con, defaultdict(str), verbosity)
+stations = stations["station"].to_list()
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
 app.title = "Druce's MTA Dashboard"
@@ -823,13 +824,13 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               # Input('submit-button-state', 'n_clicks'),
               Input('start-date-picker-single', 'date'),
               Input('end-date-picker-single', 'date'),
-              Input('checklist-CBD', 'value'),
+              Input('checklist-borough', 'value'),
               Input('checklist-dow', 'value'),
               Input('checklist-tod', 'value'),
               Input('dropdown-station', 'value'),
               )
-# def update_output(n_clicks, startdate, enddate, cbd, dow, tod):
-def update_output(startdate, enddate, cbd, dow, tod, sta):
+
+def update_output(startdate, enddate, borough, dow, tod, sta):
 
     filters = defaultdict(str)
     filters['startdate'] = startdate
@@ -837,15 +838,10 @@ def update_output(startdate, enddate, cbd, dow, tod, sta):
 
     print(sta)
 
-    # print(cbd)
+    # print(borough)
 
-    cbd_map = {
-        'Manhattan below 63': 'Y',
-        'Rest of NYC': 'N',
-    }
-    if cbd:
-        filters['cbd'] = [cbd_map[t] for t in cbd]
-    # print(filters['cbd'])
+    if borough:
+        filters['borough'] = borough
 
     # print(dow)
     if dow:
@@ -897,8 +893,8 @@ def update_output(startdate, enddate, cbd, dow, tod, sta):
     # print(df_entries_by_station.head())
 
     # output_state = u'''
-    #     You have selected "{}" to "{}", CBD "{}", DOW "{}", TOD"{}",
-    # '''.format(startdate, enddate, cbd, dow, tod)
+    #     You have selected "{}" to "{}", borough "{}", DOW "{}", TOD"{}",
+    # '''.format(startdate, enddate, borough, dow, tod)
     return [
             text_panel_1(entries_daily, entries_pandemic, entries_2019),
             text_panel_2(entries_pandemic, entries_2019),

@@ -27,6 +27,16 @@ seeds:
         tests:
           - not_null
 
+  - name: borough_map
+    columns:
+      - name: borough
+        description: borough (M,B,Bx,Q)
+        tests:
+          - unique
+          - not_null
+      - name: borough_desc
+        description: description (Manhattan, Brooklyn, Bronx, Queens)
+
   - name: station_map
     columns:
       - name: Station

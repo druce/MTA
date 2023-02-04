@@ -1,10 +1,9 @@
 select
     date_trunc('day', date_time) date,
-    station,
-    pretty_name,
+    pretty_name station,
     latitude,
     longitude,
-    cbd,
+    borough,
     dayname(date) dow,
     dayname(date) in ('Saturday', 'Sunday') is_weekend,
     sum(entries) entries,
@@ -13,11 +12,10 @@ from
     {{ref('mta_clean')}} mta_clean
 group by
     date,
-    station,
     pretty_name,
     latitude,
     longitude,
-    cbd
+    borough
 
 {{ config(
   post_hook = "

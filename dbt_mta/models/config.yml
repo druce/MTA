@@ -39,6 +39,7 @@ models:
     - name: Latitude
     - name: Longitude
     - name: CBD
+    - name: borough
     - name: entries_cutoff
     - name: exits_cutoff
     config:

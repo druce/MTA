@@ -7,7 +7,8 @@ select
     exits,
     latitude,
     longitude,
-    cbd,
+    borough_desc borough,
+    map.cbd,
     entry_avg.entries_cutoff,
     exit_avg.exits_cutoff
 from
@@ -15,6 +16,7 @@ from
     left outer join {{ref('entry_avg')}} entry_avg on mta_diff.station=entry_avg.station and mta_diff.turnstile=entry_avg.turnstile
     left outer join {{ref('exit_avg')}} exit_avg on mta_diff.station=exit_avg.station and mta_diff.turnstile=exit_avg.turnstile
     left outer join {{ref('station_map')}} map on mta_diff.station=map.station
+    left outer join {{ref('borough_map')}} borough on map.borough = borough.borough
 
 {{ config(
   post_hook = "
@@ -23,9 +25,10 @@ from
     -- delete from mta_clean where entries > entries_cutoff;
     -- delete from mta_clean where exits > exits_cutoff;
     update mta_clean set pretty_name = station where pretty_name='- ()';
-    update mta_clean set cbd = 0 where cbd is null;
     alter table mta_clean alter entries type integer;
     alter table mta_clean alter exits type integer;
+    update mta_clean set borough=concat('Manhattan below 63 St') where borough = 'Manhattan' and cbd='Y';
+    update mta_clean set borough=concat('Manhattan above 63 St') where borough = 'Manhattan' and cbd='N';
 ") }}
 
 {# should probably not do post_hook update, add another model with a filter and a formula #}

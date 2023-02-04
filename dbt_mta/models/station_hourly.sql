@@ -1,13 +1,11 @@
 select
     date_trunc('day', date_time) date,
-    station,
-    pretty_name,
+    4 * floor(date_part('hour', DATE_TIME) / 4) as hour,
+    dayname(date) dow,
+    pretty_name station,
     latitude,
     longitude,
-    cbd,
-    dayname(date) dow,
-    dayname(date) in ('Saturday', 'Sunday') is_weekend,
-    4 * floor(date_part('hour', DATE_TIME) / 4) as hour,
+    borough,
     sum(entries) entries,
     sum(exits) exits,
 from
@@ -15,11 +13,10 @@ from
 group by
     date,
     hour,
-    station,
     pretty_name,
     latitude,
     longitude,
-    cbd
+    borough
 
 {{ config(
   post_hook = "
