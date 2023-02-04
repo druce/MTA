@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: mta_staging
-    description: Deduplicate, clean up timestamps and labels
+    description: Deduplicate, clean up timestamps and labels, prep for diff
     config:
       materialized: table
       tags: ['SQL']
@@ -29,7 +29,6 @@ models:
     description: SQL Drop rows based on the computed cutoff, merge from station_map
     columns:
     - name: DATE_TIME
-    - name: DATE
     - name: STATION
       tests:
         - not_null

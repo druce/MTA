@@ -1,5 +1,5 @@
 select
-    date,
+    date_trunc('day', date_time) date,
     station,
     pretty_name,
     latitude,

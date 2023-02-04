@@ -5,7 +5,6 @@ select distinct
         date_part('hour', TIME),
         date_part('minute', TIME),
         date_part('second', TIME)) DATE_TIME,
-        "DATE",
         CONCAT("C/A" , ' ' , UNIT , ' ' , SCP) TURNSTILE,
         CONCAT(
             COALESCE(slo.STATION_DEST, CONCAT(STATION, '-', LINENAME)), 

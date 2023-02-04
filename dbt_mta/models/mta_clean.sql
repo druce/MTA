@@ -1,6 +1,5 @@
 select
     date_time,
-    date,
     mta_diff.station,
     concat(map.stop_name, '-', map.daytime_routes, ' (', map.borough, ')') pretty_name,
     mta_diff.turnstile,
@@ -21,8 +20,8 @@ from
   post_hook = "
     update mta_clean set entries_cutoff = 2000 where entries_cutoff is null;
     update mta_clean set exits_cutoff = 2000 where exits_cutoff is null;
-    delete from mta_clean where entries > entries_cutoff;
-    delete from mta_clean where exits > exits_cutoff;
+    -- delete from mta_clean where entries > entries_cutoff;
+    -- delete from mta_clean where exits > exits_cutoff;
     update mta_clean set pretty_name = station where pretty_name='- ()';
     update mta_clean set cbd = 0 where cbd is null;
     alter table mta_clean alter entries type integer;
