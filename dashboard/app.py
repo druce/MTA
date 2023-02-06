@@ -12,6 +12,7 @@ import pandas as pd
 import sqlalchemy
 from jinjasql import JinjaSql
 
+# plotly
 import plotly
 import plotly.express as px
 from dash import Dash, html, dcc, dash_table
@@ -42,16 +43,6 @@ verbosity = 0
 ############################################################
 # queries to return dataframes for dashboard
 ############################################################
-
-
-def stations_fn(con, filters, verbose=False):
-    """
-    return stations for dropdown
-    should probably run this query or make a smaller station table in dbt to not query many rows
-    """
-
-    query = """select distinct station from station_daily order by station;"""
-    return get_sql_from_template(con, query, filters, verbose)
 
 
 def quote_sql_string(value):
@@ -94,297 +85,322 @@ def get_sql_from_template(con, query, bind_params=None, verbose=False):
     return pd.read_sql(query_str, con, params=query_vals)
 
 
-def day_count_fn(con, filters, verbose=False):
-    """return number of days in the filter"""
+def stations_fn(con, verbose=False):
+    "return stations for dropdown"
+    df = get_sql_from_template(con, "select distinct pretty_name from station_list order by pretty_name;", verbose)
+    return df['pretty_name'].to_list()
+
+
+def create_filter_current(con, filters, verbose=False):
+    """make temp table filter_current from filters (just filter, no group by)"""
 
     query = """
-
-    select count(*) as days from
-    (select
-        date, count(*) as n
+    create or replace temp table filter_current as
+    select
+        date,
+        datepart('dow', date) dow,
+        hour,
+        station,
+        boro,
+        entries,
+        exits
     from
-        station_hourly
-    where TRUE
+        mta_clean
+    where
+        TRUE
         {% if startdate %} and date >= {{startdate}} {% endif %}
         {% if enddate %} and date < {{enddate}} {% endif %}
-        {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
+        {% if dow %} and date_part('dow', date) in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
+        {% if boro %} and boro in {{ boro | inclause }} {% endif %}
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
-
-    group by
-        "date"
-    )
     """
 
     return get_sql_from_template(con, query, filters, verbose)
 
 
-def day_count_pandemic_fn(con, filters, verbose=False):
-    """return number of days in the filter"""
+def create_filter_2019(con, filters, verbose=False):
+    """make temp table filter_2019 from filters (just filter, no group by)"""
 
     query = """
-
-    select count(*) as days from
-    (select
-        date, count(*) as n
+    create or replace temp table filter_2019 as
+    select
+        date,
+        datepart('dow', date) dow,
+        hour,
+        station,
+        boro,
+        entries,
+        exits
     from
-        station_hourly
-    where
-        date >= {{pandemic_start}} and date < {{pandemic_end}}
-        {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-        {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-        {% if sta %} and station in {{ sta | inclause }} {% endif %}
-    group by
-        "date"
-    )
-    """
-
-    return get_sql_from_template(con, query, filters, verbose)
-
-
-def day_count_2019_fn(con, filters, verbose=False):
-    """return number of days in the filter"""
-
-    query = """
-
-    select count(*) as days from
-    (select
-        date, count(*) as n
-    from
-        station_hourly
+        mta_clean
     where
         date_part('year', DATE)=2019
-        {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
+        {% if dow %} and date_part('dow', date) in {{ dow | inclause }}  {% endif %}
         {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
+        {% if boro %} and boro in {{ boro | inclause }} {% endif %}
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
-    group by
-        "date"
-    )
     """
 
     return get_sql_from_template(con, query, filters, verbose)
 
 
-def entries_by_date(con, filters, verbose=False):
-    """return dataframe of all entries by date, subject to filters"""
+def create_filter_pandemic(con, filters, verbose=False):
+    """make temp table filter_pandemic from filters (just filter, no group by)"""
 
     query = """
-    select date, sum(entries) entries
-    from station_hourly
-    where TRUE
-    {% if startdate %} and date >= {{startdate}} {% endif %}
-    {% if enddate %} and date < {{enddate}} {% endif %}
-    {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-    {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-    {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-    {% if sta %} and station in {{ sta | inclause }} {% endif %}
-    group by date
-    order by date
+    create or replace temp table filter_pandemic as
+    select
+        date,
+        datepart('dow', date) dow,
+        hour,
+        station,
+        boro,
+        entries,
+        exits
+    from
+        mta_clean
+    where
+        date >= '2020-04-01' and date < '2021-04-01'
+        {% if dow %} and date_part('dow', date) in {{ dow | inclause }}  {% endif %}
+        {% if tod %} and hour in {{ tod | inclause }} {% endif %}
+        {% if boro %} and boro in {{ boro | inclause }} {% endif %}
+        {% if sta %} and station in {{ sta | inclause }} {% endif %}
     """
 
     return get_sql_from_template(con, query, filters, verbose)
 
 
-def entries_by_tod(con, filters, verbose=False):
+def agg_station(con, source, verbose=False):
+    """make temp table %source%_daily, group by station, aggregate by day"""
+    query = """
+    create or replace temp table {source}_daily as
+    select
+        date,
+        dow,
+        station,
+        boro,
+        sum(entries) entries,
+        sum(exits) exits
+    from
+        {source}
+    group by
+        date,
+        dow,
+        station,
+        boro,
+    """.format(source=source)
+
+    return get_sql_from_template(con, query, None, verbose)
+
+
+def create_filter_current_daily(con, verbose=False):
+    """make temp table filter_current_daily, group by station, aggregate by day"""
+    return agg_station(con, "filter_current", verbose=verbose)
+
+
+def create_filter_2019_daily(con, verbose=False):
+    """make temp table filter_2019_daily, group by station, aggregate by day"""
+    return agg_station(con, "filter_2019", verbose=verbose)
+
+
+def create_filter_pandemic_daily(con, verbose=False):
+    """make temp table filter_current_daily, group by station, aggregate by day"""
+    return agg_station(con, "filter_pandemic", verbose=verbose)
+
+
+def agg_summary(con, source, verbose=False):
+    """make temp table %source%_summary, aggregate by date (all stations)"""
+
+    query = """
+    create or replace temp table {source}_summary as
+    select
+        date,
+        dow,
+        sum(entries) entries,
+        sum(exits) exits
+    from
+        {source}_daily
+    group by
+        date,
+        dow,
+    """.format(source=source)
+
+    return get_sql_from_template(con, query, None, verbose)
+
+
+def create_filter_current_summary(con, verbose=False):
+    """make temp table filter_current_day, group by station, aggregate by day"""
+    return agg_summary(con, "filter_current", verbose=verbose)
+
+
+def create_filter_2019_summary(con, verbose=False):
+    """make temp table filter_2019_day, group by station, aggregate by day"""
+    return agg_summary(con, "filter_2019", verbose=verbose)
+
+
+def create_filter_pandemic_summary(con, verbose=False):
+    """make temp table filter_pandemic_day, group by station, aggregate by day"""
+    return agg_summary(con, "filter_pandemic", verbose=verbose)
+
+
+def query_value(con, query, verbose=False):
+    """return a single query value"""
+    return get_sql_from_template(con, query, None, verbose).iloc[0][0]
+
+
+def entries_by_date(con, verbose=False):
+    """return dataframe of all entries by date, subject to filters"""
+    query = "select date, entries, exits from filter_current_summary order by date"
+    return get_sql_from_template(con, query, None, verbose)
+
+
+def entries_by_dow(con, verbose=False):
+    """return dataframe of all entries by day of week, comps, subject to filters"""
+
+    query = """
+        (select
+            'selection' as when,
+            count(*) n,
+            dow,
+            sum(entries)/n as entries,
+            sum(exits)/n as exits
+        from filter_current_summary
+        group by
+            dow
+        )
+        union
+        (select
+            '2019' as when,
+            count(*) n,
+            dow,
+            sum(entries)/n as entries,
+            sum(exits)/n as exits
+        from filter_2019_summary
+        group by
+            dow
+        )
+        union
+        (select
+            'pandemic' as when,
+            count(*) n,
+            dow,
+            sum(entries)/n as entries,
+            sum(exits)/n as exits
+        from filter_pandemic_summary
+        group by
+            dow
+        )
+    """
+
+    return get_sql_from_template(con, query, None, verbose=verbose)
+
+
+def entries_by_tod(con, verbose=False):
     """return dataframe of all entries by time of day, subject to filters"""
 
     query = """
-        with sh as
-            (select
-                date,
-                hour,
-                sum(entries) as entries,
-            from
-                station_hourly
-            where TRUE
-                {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-                {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-                {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-                {% if sta %} and station in {{ sta | inclause }} {% endif %}
-            group by date, hour),
-        sh1 as
-            (select
-                hour,
-                sum(entries) as entries,
-                count(*) as n,
-                sum(entries)/n as entries_per_day
-            from
-                sh
-            where TRUE
-                {% if enddate %} and date < {{enddate}} {% endif %}
-                {% if startdate %} and date >= {{startdate}} {% endif %}
-            group by
-                hour),
-        sh2019 as
-            (select
-                hour,
-                sum(entries) as entries_2019,
-                count(*) as n_2019,
-            from
-                sh
-            where date_part('year', DATE)=2019
-            group by
-                hour),
-        sh_pandemic as
-            (select
-                hour,
-                sum(entries) as entries_pandemic,
-                count(*) as n_pandemic,
-            from
-                sh
-            where date>='2020-04-01' and date <'2021-04-01'
-            group by
-                hour)
-        select
-            sh1.hour,
-            sh1.entries_per_day,
-            sh_pandemic.entries_pandemic/sh_pandemic.n_pandemic as avg_pandemic,
-            sh2019.entries_2019/sh2019.n_2019 as avg_2019
-        from
-            sh1 join sh2019 on sh1.hour = sh2019.hour
-            join sh_pandemic on sh1.hour=sh_pandemic.hour
-    """
-
-    return get_sql_from_template(con, query, filters, verbose)
-
-
-def entries_by_dow(con, filters, verbose=False):
-    """return dataframe of all entries by day of week, subject to filters"""
-
-    query = """
-    with sh as
+    (with cur as
         (select
             date,
-            dow,
+            hour,
             sum(entries) as entries,
-        from
-            station_hourly
-        where TRUE
-        {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-        {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-        {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-        {% if sta %} and station in {{ sta | inclause }} {% endif %}
-        group by date, dow),
-    sh1 as
+            sum(exits) as exits
+        from filter_current
+        group by
+            date,
+            hour)
+    select 'selection' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from cur group by hour)
+
+    union
+
+    (with pand as
         (select
-            dow,
+            date,
+            hour,
             sum(entries) as entries,
-            count(*) as n,
-            sum(entries)/n as entries_per_day
-        from
-            sh
-        where TRUE
-        {% if startdate %} and date >= {{startdate}} {% endif %}
-        {% if enddate %} and date < {{enddate}} {% endif %}
+            sum(exits) as exits
+        from filter_pandemic
         group by
-            dow),
-    sh2019 as
+            date,
+            hour)
+    select 'pandemic' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from pand group by hour)
+
+    union
+
+    (with f19 as
         (select
-            dow,
-            sum(entries) as entries_2019,
-            count(*) as n_2019,
-        from
-            sh
-        where date_part('year', DATE)=2019
+            date,
+            hour,
+            sum(entries) as entries,
+            sum(exits) as exits
+        from filter_2019
         group by
-            dow),
-    sh_pandemic as
-        (select
-            dow,
-            sum(entries) as entries_pandemic,
-            count(*) as n_pandemic,
-        from
-            sh
-        where date>='2020-04-01' and date <'2021-04-01'
-        group by
-            dow)
-    select
-        sh1.dow,
-        sh1.entries_per_day,
-        sh_pandemic.entries_pandemic/sh_pandemic.n_pandemic as avg_pandemic,
-        sh2019.entries_2019/sh2019.n_2019 as avg_2019
-    from
-        sh1 join sh2019 on sh1.dow = sh2019.dow
-        join sh_pandemic on sh1.dow=sh_pandemic.dow
+            date,
+            hour)
+    select '2019' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from f19 group by hour)
     """
 
-    return get_sql_from_template(con, query, filters, verbose)
+    return get_sql_from_template(con, query, None, verbose=verbose)
 
 
-def entries_by_station(con, filters, verbose=False):
-    """
-    query from hourly subject to filters, then sum by station
-    include comparison to 2019 and pandemic (also subject to filters)
-    """
+def entries_by_station(con, verbose=False):
 
     query = """
-    with sd as
-        (SELECT
+    with cur as
+    (SELECT
         station,
+        count(*) n,
+        sum(entries)/n entries,
+        sum(exits)/n exits
+    from
+        filter_current_daily
+        group by station
+    ),
+    pand as
+    (SELECT
+        station,
+        count(*) n,
+        sum(entries)/n entries,
+        sum(exits)/n exits
+    from
+        filter_pandemic_daily
+        group by station
+    ),
+    f19 as
+    (SELECT
+        station,
+        count(*) n,
+        sum(entries)/n entries,
+        sum(exits)/n exits
+    from
+        filter_2019_daily
+        group by station
+    )
+    select
+        station_list.pretty_name,
         latitude,
         longitude,
-        sum(entries) as entries
-        FROM station_hourly
-        where
-            TRUE
-            {% if startdate %} and date >= {{startdate}} {% endif %}
-            {% if enddate %} and date < {{enddate}} {% endif %}
-            {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-            {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-            {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-            {% if sta %} and station in {{ sta | inclause }} {% endif %}
-        GROUP BY
-        station,
-        latitude,
-        longitude
-        ORDER BY
-        station
-        )
-    select
-    sd.station,
-    latitude,
-    longitude,
-    sd.entries,
-    sd.entries::float/vs2019.entries_2019-1 as pct_v_2019,
-    sd.entries::float/vspandemic.entries_pandemic-1 as pct_v_pandemic,
-    vs2019.entries_2019,
-    vspandemic.entries_pandemic
-    FROM
-    sd
-    LEFT OUTER JOIN (
-        SELECT station, sum(entries) entries_2019
-            FROM station_hourly
-            WHERE date_part('year', DATE)=2019
-            {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-            {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-            {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-            {% if sta %} and station in {{ sta | inclause }} {% endif %}
-            GROUP BY station
-            ORDER BY station
-    ) vs2019 on vs2019.station=sd.station
-    LEFT OUTER JOIN (
-        SELECT station, sum(entries) entries_pandemic
-            FROM station_hourly
-            WHERE
-            date >= {{pandemic_start}} and date < {{pandemic_end}}
-            {% if dow %} and dow in {{ dow | inclause }}  {% endif %}
-            {% if tod %} and hour in {{ tod | inclause }} {% endif %}
-            {% if borough %} and borough in {{ borough | inclause }} {% endif %}
-            {% if sta %} and station in {{ sta | inclause }} {% endif %}
-            GROUP BY station
-            ORDER BY station
-    ) vspandemic on vspandemic.station=sd.station
+        cur.entries entries_selection,
+        cur.exits exits_selection,
+        pand.entries entries_pandemic,
+        pand.exits exits_pandemic,
+        f19.entries entries_2019,
+        f19.exits exits_2019
+    from
+        station_list
+        left outer join cur on station_list.pretty_name = cur.station
+        left outer join f19 on station_list.pretty_name = f19.station
+        left outer join pand on station_list.pretty_name = pand.station
+    order by station_list.station;
     """
 
-    return get_sql_from_template(con, query, filters, verbose)
-
+    return get_sql_from_template(con, query, None, verbose=verbose)
 
 ######################################################################
 # output panels as elements
 ######################################################################
+
 
 def text_panel_1(entries_daily, entries_pandemic, entries_2019):
     markdown1 = '''
@@ -462,23 +478,10 @@ def fig1(df_entries_by_date):
 
 def fig2(df_entries_by_dow):
     # fix sort order
-    dow_map = {
-        'Monday': 0,
-        'Tuesday': 1,
-        'Wednesday': 2,
-        'Thursday': 3,
-        'Friday': 4,
-        'Saturday': 5,
-        'Sunday': 6
-    }
-    df_entries_by_dow['sort_order'] = df_entries_by_dow['dow'].apply(lambda d: dow_map[d])
-    df_entries_by_dow = df_entries_by_dow.sort_values('sort_order').reset_index(drop=True)
-    df_entries_by_dow.columns = ['dow', 'selection', 'pandemic', '2019', 'sort_order']
-    df_entries_by_dow = pd.melt(df_entries_by_dow[['dow', 'selection', 'pandemic', '2019']],
-                                id_vars='dow', var_name='when', value_name='entries')
+    df_entries_by_dow['Weekday'] = df_entries_by_dow['dow'].apply(lambda i: dowinvmap[i])
 
-    fig = px.bar(df_entries_by_dow,
-                 x="dow", y="entries", color='when', barmode="group", height=360,
+    fig = px.bar(df_entries_by_dow[['Weekday', 'when', 'entries']],
+                 x="Weekday", y="entries", color='when', barmode="group", height=360,
                  color_discrete_sequence=plotly.colors.qualitative.Dark24)
     # fig.update_traces(marker_color='#003399')
     fig.update_layout(
@@ -521,15 +524,9 @@ def fig2(df_entries_by_dow):
 
 
 def fig3(df_entries_by_tod):
-
-    df_entries_by_tod.columns = ['tod', 'selection', 'pandemic', '2019']
-    df_entries_by_tod = pd.melt(df_entries_by_tod,
-                                id_vars='tod', var_name='when', value_name='entries')
-
     fig = px.bar(df_entries_by_tod,
-                 x="tod", y="entries", color='when', barmode="group", height=360,
+                 x="hour", y="entries", color='when', barmode="group", height=360,
                  color_discrete_sequence=plotly.colors.qualitative.Dark24)
-    # fig.update_traces(marker_color='#003399')
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
@@ -570,6 +567,11 @@ def fig3(df_entries_by_tod):
 
 
 def fig_table(df):
+    temp_df = df[['pretty_name', 'entries_selection', 'entries_pandemic', 'entries_2019']].copy()
+    temp_df['pct_v_2019'] = temp_df['entries_selection'] / temp_df['entries_2019'] - 1
+    temp_df['pct_v_pandemic'] = temp_df['entries_selection'] / temp_df['entries_pandemic'] - 1
+    temp_df.rename(columns={'pretty_name': 'station', 'entries_selection': 'entries'}, inplace=True)
+
     table = dash_table.DataTable(
         id='fig_table',
         columns=[
@@ -581,7 +583,7 @@ def fig_table(df):
             {"name": '%Ch vs. Pandemic', "id": 'pct_v_pandemic', "deletable": False, "selectable": False,
              "type": "numeric", "format": FormatTemplate.percentage(1)},
         ],
-        data=df[['station', 'entries', 'pct_v_2019', 'pct_v_pandemic']].to_dict('records'),
+        data=temp_df.to_dict('records'),
         editable=False,
         filter_action="native",
         sort_action="native",
@@ -630,20 +632,19 @@ def fig_table(df):
 
 
 def fig_map(df, mapbox_token):
+    df = df[['pretty_name', 'Latitude', 'Longitude', 'entries_selection',
+             'entries_pandemic', 'entries_2019',]].copy()
+    df['pct_v_2019'] = df['entries_selection'] / df['entries_2019'] - 1
+    df['pct_v_pandemic'] = df['entries_selection'] / df['entries_pandemic'] - 1
+    df.rename(columns={'pretty_name': 'station', 'entries_selection': 'entries'}, inplace=True)
     fig = px.scatter_mapbox(
         df,
         lat="Latitude",
         lon="Longitude",
         hover_name="station",
-
-        hover_data={"Avg Daily Entries": True,
-                    "vs. Pandemic": True,
-                    "vs. 2019": True,
-                    "pct_v_2019": False,
-                    "entries": False,
-                    "Latitude": False,
-                    "Longitude": False,
-                    },
+        hover_data={"entries": True, "Latitude": False, "Longitude": False,
+                    "pct_v_2019": True, "pct_v_pandemic": True,
+                    "entries_2019": False, "entries_pandemic": False},
         size="entries", size_max=20,
         color_continuous_scale=px.colors.sequential.YlGnBu, color="pct_v_2019",
         zoom=10, height=480)
@@ -710,8 +711,8 @@ def generate_content(filters=None):
             dbc.Col([html.Div("Day of week:")], xs=2),
             dbc.Col(html.Div([
                 dcc.Checklist(
-                    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+                    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",],
+                    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",],
                     id='checklist-dow',
                     className='mta-checklist',
                     inline=True,
@@ -804,8 +805,35 @@ def generate_content(filters=None):
 ######################################################################
 
 # global variable, only query on startup
-stations = stations_fn(con, defaultdict(str), verbosity)
-stations = stations["station"].to_list()
+stations = stations_fn(con, verbosity)
+
+boromap = {
+    'Manhattan below 63 St': 1,
+    'Manhattan above 63 St': 2,
+    'Brooklyn': 3,
+    'Queens': 4,
+    'Bronx': 5,
+}
+
+dowmap = {
+    'Sunday': 0,
+    'Monday': 1,
+    'Tuesday': 2,
+    'Wednesday': 3,
+    'Thursday': 4,
+    'Friday': 5,
+    'Saturday': 6,
+}
+dowinvmap = {v: k for k, v in dowmap.items()}
+
+todmap = {
+    '4:00am': 4,
+    '8:00am': 8,
+    '12:00 noon': 12,
+    '4:00pm': 16,
+    '8:00pm': 20,
+    '12:00 midnight': 24
+}
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
 app.title = "Druce's MTA Dashboard"
@@ -829,86 +857,69 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               Input('checklist-tod', 'value'),
               Input('dropdown-station', 'value'),
               )
-
-def update_output(startdate, enddate, borough, dow, tod, sta):
+def update_output(startdate, enddate, boro, dow, tod, sta):
 
     filters = defaultdict(str)
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
-    print(sta)
-
-    # print(borough)
-
-    if borough:
-        filters['borough'] = borough
+    # print(boro)
+    if boro and len(boro) < 5:  # if all are set, don't set a filter
+        filters['boro'] = list(map(lambda s: boromap[s], boro))
 
     # print(dow)
-    if dow:
-        filters['dow'] = dow
+    if dow and len(dow) < 7:  # if all are set, don't set a filter
+        filters['dow'] = list(map(lambda s: dowmap[s], dow))
 
     # print(tod)
-    tod_map = {
-        '4:00am': 4,
-        '8:00am': 8,
-        '12:00 noon': 12,
-        '4:00pm': 16,
-        '8:00pm': 20,
-        '12:00 midnight': 24
-    }
-    if tod:
-        filters['tod'] = [tod_map[t] for t in tod]
+    if tod and len(tod) < 6:  # if all are set, don't set a filter
+        filters['tod'] = list(map(lambda s: todmap[s], tod))
 
+    # print(sta)
     if sta:
         filters['sta'] = sta
 
-    filters['pandemic_start'] = '2020-04-01'
-    filters['pandemic_end'] = '2021-04-01'
+    # print(filters)
 
-    # run the queries
-    df_day_count = day_count_fn(con, filters)
-    day_count = df_day_count.iloc[0][0]
-    df_day_count_2019 = day_count_2019_fn(con, filters)
-    day_count_2019 = df_day_count_2019.iloc[0][0]
-    df_day_count_pandemic = day_count_pandemic_fn(con, filters)
-    day_count_pandemic = df_day_count_pandemic.iloc[0][0]
+    create_filter_current(con, filters, verbose=verbosity)
+    create_filter_pandemic(con, filters, verbose=verbosity)
+    create_filter_2019(con, filters, verbose=verbosity)
 
-    print("callback %d days, 2019 %d, pandemic %d" % (day_count, day_count_2019, day_count_pandemic))
+    create_filter_current_daily(con, verbose=verbosity)
+    create_filter_pandemic_daily(con, verbose=verbosity)
+    create_filter_2019_daily(con, verbose=verbosity)
 
-    df_entries_by_date = entries_by_date(con, filters, verbose=verbosity)
-    df_entries_by_tod = entries_by_tod(con, filters, verbose=verbosity)
-    df_entries_by_dow = entries_by_dow(con, filters, verbose=verbosity)
-    df_entries_by_station = entries_by_station(con, filters, verbose=verbosity)
+    create_filter_current_summary(con, verbose=verbosity)
+    create_filter_pandemic_summary(con, verbose=verbosity)
+    create_filter_2019_summary(con, verbose=verbosity)
 
-    entries_daily = df_entries_by_station['entries'].sum() / day_count
-    entries_2019 = df_entries_by_station['entries_2019'].sum() / day_count_2019
-    entries_pandemic = df_entries_by_station['entries_pandemic'].sum() / day_count_pandemic
-    df_entries_by_station['entries'] /= day_count
+    avg_entries_daily = query_value(con, "select avg(entries) from filter_current_summary", verbose=verbosity)
+    avg_entries_pandemic = query_value(con, "select avg(entries) from filter_pandemic_summary", verbose=verbosity)
+    avg_entries_2019 = query_value(con, "select avg(entries) from filter_2019_summary", verbose=verbosity)
 
-    print("callback %f avg daily entries, 2019 %f, pandemic %f" % (entries_daily, entries_2019, entries_pandemic))
-
-    df_entries_by_station['Avg Daily Entries'] = df_entries_by_station['entries'].apply(lambda f: "%.1fk" % (f/1000))
-    df_entries_by_station['vs. 2019'] = df_entries_by_station['pct_v_2019'].apply(lambda f: "%.1f%%" % (f * 100))
-    df_entries_by_station['vs. Pandemic'] = df_entries_by_station['pct_v_pandemic'].apply(lambda f: "%.1f%%" % (f * 100))
-    # print(df_entries_by_station.head())
+    df_entries_by_date = entries_by_date(con, verbose=verbosity)
+    df_entries_by_tod = entries_by_tod(con, verbose=verbosity)
+    df_entries_by_dow = entries_by_dow(con, verbose=verbosity)
+    df_entries_by_station = entries_by_station(con, verbose=verbosity)
 
     # output_state = u'''
     #     You have selected "{}" to "{}", borough "{}", DOW "{}", TOD"{}",
     # '''.format(startdate, enddate, borough, dow, tod)
     return [
-            text_panel_1(entries_daily, entries_pandemic, entries_2019),
-            text_panel_2(entries_pandemic, entries_2019),
-            text_panel_3(entries_2019),
-            fig1(df_entries_by_date),
-            fig2(df_entries_by_dow),
-            fig3(df_entries_by_tod),
-            [fig_table(df_entries_by_station), html.Div(id='datatable-interactivity-container')],
-            ["Station map, size=entries, color=%ch from 2019", fig_map(df_entries_by_station, mapbox_token),],
-            ]
+        text_panel_1(avg_entries_daily, avg_entries_pandemic, avg_entries_2019),
+        text_panel_2(avg_entries_pandemic, avg_entries_2019),
+        text_panel_3(avg_entries_2019),
+        fig1(df_entries_by_date),
+        fig2(df_entries_by_dow),
+        fig3(df_entries_by_tod),
+        [fig_table(df_entries_by_station), html.Div(id='datatable-interactivity-container')],
+        ["Station map, size=entries, color=%ch from 2019", fig_map(df_entries_by_station, mapbox_token),],
+    ]
+
 # check e.g. q line this year
 # fix spacing of e.g. checkboxes
 # check update on Saturdays
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, host='0.0.0.0')
+    app.run_server(debug=True, host='0.0.0.0')

@@ -1,23 +1,28 @@
 select
-    date_time,
-    mta_diff.station,
-    concat(map.stop_name, '-', map.daytime_routes, ' (', map.borough, ')') pretty_name,
-    mta_diff.turnstile,
-    entries,
-    exits,
-    latitude,
-    longitude,
-    borough_desc borough,
-    map.cbd,
-    entry_avg.entries_cutoff,
-    exit_avg.exits_cutoff
+    date_trunc('day', date_time) date,
+    4 * floor(date_part('hour', date_time) / 4) as hour,
+    map.pretty_name station,
+    map.borough boro,
+    sum(entries) entries,
+    sum(exits) exits
 from
     {{ref('mta_diff')}} mta_diff
-    left outer join {{ref('entry_avg')}} entry_avg on mta_diff.station=entry_avg.station and mta_diff.turnstile=entry_avg.turnstile
-    left outer join {{ref('exit_avg')}} exit_avg on mta_diff.station=exit_avg.station and mta_diff.turnstile=exit_avg.turnstile
-    left outer join {{ref('station_map')}} map on mta_diff.station=map.station
-    left outer join {{ref('borough_map')}} borough on map.borough = borough.borough
+    left outer join {{ref('station_list')}} map on mta_diff.station=map.station
+group by 
+    date,
+    hour,
+    map.pretty_name,
+    boro
+having sum(mta_diff.entries) > 0 and sum(mta_diff.exits) > 0
 
+{{ config(
+  post_hook = "
+    alter table mta_clean alter hour type integer;
+    alter table mta_clean alter entries type integer;
+    alter table mta_clean alter exits type integer;
+") }}
+
+{# ignore this
 {{ config(
   post_hook = "
     update mta_clean set entries_cutoff = 2000 where entries_cutoff is null;
@@ -27,8 +32,5 @@ from
     update mta_clean set pretty_name = station where pretty_name='- ()';
     alter table mta_clean alter entries type integer;
     alter table mta_clean alter exits type integer;
-    update mta_clean set borough=concat('Manhattan below 63 St') where borough = 'Manhattan' and cbd='Y';
-    update mta_clean set borough=concat('Manhattan above 63 St') where borough = 'Manhattan' and cbd='N';
 ") }}
-
-{# should probably not do post_hook update, add another model with a filter and a formula #}
+#}

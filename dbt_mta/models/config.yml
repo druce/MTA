@@ -26,34 +26,23 @@ models:
       tags: ['SQL']
 
   - name: mta_clean
-    description: SQL Drop rows based on the computed cutoff, merge from station_map
+    description: SQL Drop rows based on the computed cutoff (disabled), merge from station_map
     columns:
-    - name: DATE_TIME
-    - name: STATION
+    - name: date
+    - name: hour
+    - name: station
       tests:
         - not_null
-    - name: pretty_name
-    - name: TURNSTILE
+    - name: turnstile
     - name: entries
     - name: exits
-    - name: Latitude
-    - name: Longitude
-    - name: CBD
-    - name: borough
-    - name: entries_cutoff
-    - name: exits_cutoff
     config:
       materialized: table
       tags: ['SQL']
 
-  - name: station_daily
-    description: Sum stations by day
+  - name: station_list
+    description: list of stations, lat/lon, etc
     config:
       materialized: table
       tags: ['SQL']
 
-  - name: station_hourly
-    description: Sum stations by day and hour
-    config:
-      materialized: table
-      tags: ['SQL']
