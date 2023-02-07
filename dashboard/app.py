@@ -19,7 +19,7 @@ from dash import Dash, html, dcc, dash_table
 import dash_bootstrap_components as dbc
 from dash.dash_table import FormatTemplate
 from dash.dash_table.Format import Format, Scheme
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 
 from dotenv import load_dotenv
 
@@ -401,12 +401,11 @@ def entries_by_station(con, verbose=False):
         f19.exits exits_2019
     from
         station_list
-        left outer join cur on station_list.pretty_name = cur.station
-        left outer join f19 on station_list.pretty_name = f19.station
-        left outer join pand on station_list.pretty_name = pand.station
+        join cur on station_list.pretty_name = cur.station
+        join f19 on station_list.pretty_name = f19.station
+        join pand on station_list.pretty_name = pand.station
     order by station_list.station;
     """
-
     return get_sql_from_template(con, query, None, verbose=verbose)
 
 ######################################################################
@@ -445,9 +444,22 @@ def text_panel_3(entries_2019):
     return dcc.Markdown(markdown3.format(entries_2019))
 
 
-def fig1(df_entries_by_date):
-    fig = px.line(df_entries_by_date, x="date", y="entries", height=360)
-    fig.update_traces(line=dict(color='#0033cc', width=2))
+def ma_input(value=7):
+    return dcc.Input(value=value, min=1, size="8", className="ma_value_input", id="ma_value_input")
+
+
+def fig1(df_entries_by_date, ma_interval):
+
+    ma_interval = int(ma_interval)
+    if ma_interval is None or ma_interval < 1:
+        ma_interval = 1
+
+    df_entries_by_date['entries_ma'] = df_entries_by_date['entries'].rolling(ma_interval).mean()
+    df_entries_by_date['exits_ma'] = df_entries_by_date['exits'].rolling(ma_interval).mean()
+
+    fig = px.line(df_entries_by_date, x="date", y=["entries_ma", "exits_ma"], height=330,
+                  color_discrete_sequence=plotly.colors.qualitative.Dark24)
+    fig.update_traces(line=dict(width=2))
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
@@ -662,6 +674,7 @@ def fig_table(df):
 
 
 def fig_map(df, mapbox_token):
+    print(df)
     df = df[['pretty_name', 'Latitude', 'Longitude', 'entries_selection',
              'entries_pandemic', 'entries_2019',]].copy()
     df['pct_v_2019'] = df['entries_selection'] / df['entries_2019'] - 1
@@ -816,7 +829,7 @@ def generate_content(filters=None):
             ]),
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(className="chart-header", id='fig1'),
+            dbc.Col(className="chart-header", id='fig1', children=["Moving Average:  ", ma_input(),]),
             dbc.Col(className="chart-header", id='fig2'),
             dbc.Col(className="chart-header", id='fig3'),
             dbc.Col(xl=1),  # gutter on xl and larger
@@ -886,14 +899,15 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               Input('checklist-dow', 'value'),
               Input('checklist-tod', 'value'),
               Input('dropdown-station', 'value'),
+              Input('ma_value_input', 'value'),
               )
-def update_output(startdate, enddate, boro, dow, tod, sta):
+def update_output(startdate, enddate, boro, dow, tod, sta, ma):
 
     filters = defaultdict(str)
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
-    # print(boro)
+    print(boro)
     if boro and len(boro) < 5:  # if all are set, don't set a filter
         filters['boro'] = list(map(lambda s: boromap[s], boro))
 
@@ -909,7 +923,7 @@ def update_output(startdate, enddate, boro, dow, tod, sta):
     if sta:
         filters['sta'] = sta
 
-    # print(filters)
+    print(filters)
 
     create_filter_current(con, filters, verbose=verbosity)
     create_filter_pandemic(con, filters, verbose=verbosity)
@@ -939,7 +953,7 @@ def update_output(startdate, enddate, boro, dow, tod, sta):
         text_panel_1(avg_entries_daily, avg_entries_pandemic, avg_entries_2019),
         text_panel_2(avg_entries_pandemic, avg_entries_2019),
         text_panel_3(avg_entries_2019),
-        fig1(df_entries_by_date),
+        ["Moving Average:  ", ma_input(ma), fig1(df_entries_by_date, ma)],
         fig2(df_entries_by_dow),
         fig3(df_entries_by_tod),
         [fig_table(df_entries_by_station), html.Div(id='datatable-interactivity-container')],
