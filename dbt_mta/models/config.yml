@@ -9,6 +9,17 @@ models:
 
   - name: mta_diff
     description: First-difference the turnstile counters, keeping 0 <= diff <= 7200
+    columns:
+    - name: date_time
+      description: time of turnstile observation
+    - name: station
+    - name: turnstile
+    - name: entries
+      description: difference from previous turnstile entries odometer reading
+    - name: exits
+      description: difference from previous turnstile exits odometer reading
+    - name: time_diff
+      description: time difference from previous turnstile reading
     config:
       materialized: table
       tags: ['SQL']

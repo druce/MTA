@@ -4,6 +4,9 @@ from pathlib import Path
 import os
 import subprocess
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 #######################################################
 # Download data from MTA

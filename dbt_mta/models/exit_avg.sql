@@ -1,3 +1,4 @@
+-- not used, could drop rows based on > 4 standard deviations from mean or 2000, whichever is greater
 select 
     station, 
     turnstile, 

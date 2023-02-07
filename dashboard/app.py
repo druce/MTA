@@ -259,8 +259,22 @@ def entries_by_dow(con, verbose=False):
     """return dataframe of all entries by day of week, comps, subject to filters"""
 
     query = """
+        with dow_query as
+        ((select
+            'Pandemic' as when,
+            count(*) n,
+            dow,
+            sum(entries)/n as entries,
+            sum(exits)/n as exits
+        from filter_pandemic_summary
+        group by
+            dow
+        )
+
+        union
+
         (select
-            'selection' as when,
+            'Selected' as when,
             count(*) n,
             dow,
             sum(entries)/n as entries,
@@ -269,7 +283,9 @@ def entries_by_dow(con, verbose=False):
         group by
             dow
         )
+
         union
+
         (select
             '2019' as when,
             count(*) n,
@@ -279,66 +295,62 @@ def entries_by_dow(con, verbose=False):
         from filter_2019_summary
         group by
             dow
-        )
-        union
-        (select
-            'pandemic' as when,
-            count(*) n,
-            dow,
-            sum(entries)/n as entries,
-            sum(exits)/n as exits
-        from filter_pandemic_summary
-        group by
-            dow
-        )
+        ))
+        select * from dow_query
+        order by case "when" when '2019' then 1 when 'Selected' then 2 when 'Pandemic' then 3 end
     """
-
-    return get_sql_from_template(con, query, None, verbose=verbose)
+    df = get_sql_from_template(con, query, None, verbose=verbose)
+    return df
 
 
 def entries_by_tod(con, verbose=False):
     """return dataframe of all entries by time of day, subject to filters"""
 
     query = """
-    (with cur as
-        (select
-            date,
-            hour,
-            sum(entries) as entries,
-            sum(exits) as exits
-        from filter_current
-        group by
-            date,
-            hour)
-    select 'selection' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from cur group by hour)
+    with tod_subquery as (
+        (with pand as
+            (select
+                date,
+                hour,
+                sum(entries) as entries,
+                sum(exits) as exits
+            from filter_pandemic
+            group by
+                date,
+                hour)
+        select 'Pandemic' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from pand group by hour)
 
-    union
+        union
 
-    (with pand as
-        (select
-            date,
-            hour,
-            sum(entries) as entries,
-            sum(exits) as exits
-        from filter_pandemic
-        group by
-            date,
-            hour)
-    select 'pandemic' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from pand group by hour)
+        (with cur as
+            (select
+                date,
+                hour,
+                sum(entries) as entries,
+                sum(exits) as exits
+            from filter_current
+            group by
+                date,
+                hour)
+        select 'Selected' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from cur group by hour)
 
-    union
+        union
 
-    (with f19 as
-        (select
-            date,
-            hour,
-            sum(entries) as entries,
-            sum(exits) as exits
-        from filter_2019
-        group by
-            date,
-            hour)
-    select '2019' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from f19 group by hour)
+        (with f19 as
+            (select
+                date,
+                hour,
+                sum(entries) as entries,
+                sum(exits) as exits
+            from filter_2019
+            group by
+                date,
+                hour)
+        select '2019' as when, hour, count(*) n, sum(entries)/n as entries, sum(exits)/n as exits from f19 group by hour)
+    )
+    select * from tod_subquery
+    order by case "when" when '2019' then 1 when 'Selected' then 2 when 'Pandemic' then 3 end
+
     """
 
     return get_sql_from_template(con, query, None, verbose=verbose)
@@ -441,9 +453,8 @@ def fig1(df_entries_by_date):
         paper_bgcolor="white",
         # plot_bgcolor="white",
         showlegend=False,
-        xaxis_title="Date",
+        xaxis_title=None,
         yaxis_title="Entries",
-        legend_title="Legend Title",
         xaxis={
             'ticks': 'inside',
             'showgrid': True,            # thin lines in the background
@@ -477,7 +488,7 @@ def fig1(df_entries_by_date):
 
 
 def fig2(df_entries_by_dow):
-    # fix sort order
+    """entries by day of week"""
     df_entries_by_dow['Weekday'] = df_entries_by_dow['dow'].apply(lambda i: dowinvmap[i])
 
     fig = px.bar(df_entries_by_dow[['Weekday', 'when', 'entries']],
@@ -488,15 +499,23 @@ def fig2(df_entries_by_dow):
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
         # plot_bgcolor="white",
-        showlegend=False,
+        showlegend=True,
+        legend=dict(
+            title="",
+            orientation="h",
+            entrywidth=70,
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
         xaxis_title="Date",
         yaxis_title="Entries",
-        legend_title="Legend Title",
         xaxis={
             'tickmode': 'linear',
             'tick0': 0,
             'dtick': 1,
-            'title': 'Day of Week',
+            'title': None,
             'ticks': 'inside',
             'showgrid': True,            # thin lines in the background
             'zeroline': False,           # thick line at x=0
@@ -524,6 +543,9 @@ def fig2(df_entries_by_dow):
 
 
 def fig3(df_entries_by_tod):
+    """entries by time of day
+    0 is really showing entries for prior day, ideally would change to 24 and lag 1 day
+    """
     fig = px.bar(df_entries_by_tod,
                  x="hour", y="entries", color='when', barmode="group", height=360,
                  color_discrete_sequence=plotly.colors.qualitative.Dark24)
@@ -531,15 +553,23 @@ def fig3(df_entries_by_tod):
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
         # plot_bgcolor="white",
-        showlegend=False,
+        showlegend=True,
+        legend=dict(
+            title="",
+            orientation="h",
+            entrywidth=70,
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
         xaxis_title="Date",
         yaxis_title="Entries",
-        legend_title="Legend Title",
         xaxis={
             'tickmode': 'linear',
             'tick0': 0,
             'dtick': 4,
-            'title': 'Time of Day',
+            'title': None,
             'ticks': 'inside',
             'showgrid': True,            # thin lines in the background
             'zeroline': False,           # thick line at x=0
@@ -781,7 +811,7 @@ def generate_content(filters=None):
             dbc.Col(xl=1),  # gutter on xl and larger
             dbc.Col(className="chart-header", children=['Entries by Date', ]),
             dbc.Col(className="chart-header", children=['Avg. Entries by Day of Week']),
-            dbc.Col(className="chart-header", children=['Avg. Entries by 4-Hour Block']),
+            dbc.Col(className="chart-header", children=['Avg. Entries by Time of Day']),
             dbc.Col(xl=1),  # gutter on xl and larger
             ]),
         dbc.Row([
