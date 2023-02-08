@@ -24,6 +24,9 @@ having sum(mta_diff.entries) > 0 and sum(mta_diff.exits) > 0
     alter table mta_clean alter hour type integer;
     alter table mta_clean alter entries type integer;
     alter table mta_clean alter exits type integer;
+    -- move midnight to prev day, hour=24
+    update mta_clean set hour=24, date=date-1 where hour = 0;
+    delete from mta_clean where date_part('year', date)<2019;
 ") }}
 
 {# ignore this

@@ -39,6 +39,7 @@ con = sqlalchemy.create_engine(connection_string, connect_args={'read_only': Tru
 
 # print sql queries
 verbosity = 0
+debug = False
 
 ############################################################
 # queries to return dataframes for dashboard
@@ -87,13 +88,14 @@ def get_sql_from_template(con, query, bind_params=None, verbose=False):
 
 def stations_fn(con, verbose=False):
     "return stations for dropdown"
-    df = get_sql_from_template(con, "select distinct pretty_name from station_list order by pretty_name;", verbose)
+    df = get_sql_from_template(con, "select distinct pretty_name from station_list order by pretty_name;", verbose=verbose)
     return df['pretty_name'].to_list()
 
 
 def create_filter_current(con, filters, verbose=False):
     """make temp table filter_current from filters (just filter, no group by)"""
 
+    print("filter_current")
     query = """
     create or replace temp table filter_current as
     select
@@ -116,7 +118,7 @@ def create_filter_current(con, filters, verbose=False):
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
     """
 
-    return get_sql_from_template(con, query, filters, verbose)
+    return get_sql_from_template(con, query, filters, verbose=verbose)
 
 
 def create_filter_2019(con, filters, verbose=False):
@@ -142,7 +144,7 @@ def create_filter_2019(con, filters, verbose=False):
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
     """
 
-    return get_sql_from_template(con, query, filters, verbose)
+    return get_sql_from_template(con, query, filters, verbose=verbose)
 
 
 def create_filter_pandemic(con, filters, verbose=False):
@@ -168,7 +170,7 @@ def create_filter_pandemic(con, filters, verbose=False):
         {% if sta %} and station in {{ sta | inclause }} {% endif %}
     """
 
-    return get_sql_from_template(con, query, filters, verbose)
+    return get_sql_from_template(con, query, filters, verbose=verbose)
 
 
 def agg_station(con, source, verbose=False):
@@ -191,7 +193,7 @@ def agg_station(con, source, verbose=False):
         boro,
     """.format(source=source)
 
-    return get_sql_from_template(con, query, None, verbose)
+    return get_sql_from_template(con, query, None, verbose=verbose)
 
 
 def create_filter_current_daily(con, verbose=False):
@@ -226,7 +228,7 @@ def agg_summary(con, source, verbose=False):
         dow,
     """.format(source=source)
 
-    return get_sql_from_template(con, query, None, verbose)
+    return get_sql_from_template(con, query, None, verbose=verbose)
 
 
 def create_filter_current_summary(con, verbose=False):
@@ -246,13 +248,13 @@ def create_filter_pandemic_summary(con, verbose=False):
 
 def query_value(con, query, verbose=False):
     """return a single query value"""
-    return get_sql_from_template(con, query, None, verbose).iloc[0][0]
+    return get_sql_from_template(con, query, None, verbose=verbose).iloc[0][0]
 
 
 def entries_by_date(con, verbose=False):
     """return dataframe of all entries by date, subject to filters"""
     query = "select date, entries, exits from filter_current_summary order by date"
-    return get_sql_from_template(con, query, None, verbose)
+    return get_sql_from_template(con, query, None, verbose=verbose)
 
 
 def entries_by_dow(con, verbose=False):
@@ -454,19 +456,29 @@ def fig1(df_entries_by_date, ma_interval):
     if ma_interval is None or ma_interval < 1:
         ma_interval = 1
 
-    df_entries_by_date['entries_ma'] = df_entries_by_date['entries'].rolling(ma_interval).mean()
-    df_entries_by_date['exits_ma'] = df_entries_by_date['exits'].rolling(ma_interval).mean()
+    entries_desc = 'Entries (%d-day MA) ' % ma_interval
+    exits_desc = 'Exits (%d-day MA) ' % ma_interval
+    df_entries_by_date[entries_desc] = df_entries_by_date['entries'].rolling(ma_interval).mean()
+    df_entries_by_date[exits_desc] = df_entries_by_date['exits'].rolling(ma_interval).mean()
 
-    fig = px.line(df_entries_by_date, x="date", y=["entries_ma", "exits_ma"], height=330,
+    fig = px.line(df_entries_by_date, x="date", y=[entries_desc, exits_desc], height=360,
                   color_discrete_sequence=plotly.colors.qualitative.Dark24)
     fig.update_traces(line=dict(width=2))
     fig.update_layout(
         margin={'l': 10, 'r': 15, 't': 10},
         paper_bgcolor="white",
         # plot_bgcolor="white",
-        showlegend=False,
+        showlegend=True,
+        legend=dict(
+            title="",
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0
+        ),
         xaxis_title=None,
-        yaxis_title="Entries",
+        yaxis_title="Entries/Exits",
         xaxis={
             'ticks': 'inside',
             'showgrid': True,            # thin lines in the background
@@ -496,7 +508,7 @@ def fig1(df_entries_by_date, ma_interval):
         #         color="RebeccaPurple"
         #     )
     )
-    return dcc.Graph(id='entries-graph', figure=fig)
+    return dcc.Graph(id='entries-graph', animate=False, figure=fig)
 
 
 def fig2(df_entries_by_dow):
@@ -551,7 +563,7 @@ def fig2(df_entries_by_dow):
             'mirror': True,
         },
     )
-    return dcc.Graph(id='dow-graph', figure=fig)
+    return dcc.Graph(id='dow-graph', animate=False, figure=fig)
 
 
 def fig3(df_entries_by_tod):
@@ -605,7 +617,7 @@ def fig3(df_entries_by_tod):
             'mirror': True,
         },
     )
-    return dcc.Graph(id='entries-tod', figure=fig)
+    return dcc.Graph(id='entries-tod', animate=False, figure=fig)
 
 
 def fig_table(df):
@@ -674,27 +686,33 @@ def fig_table(df):
 
 
 def fig_map(df, mapbox_token):
-    print(df)
+
     df = df[['pretty_name', 'Latitude', 'Longitude', 'entries_selection',
              'entries_pandemic', 'entries_2019',]].copy()
-    df['pct_v_2019'] = df['entries_selection'] / df['entries_2019'] - 1
-    df['pct_v_pandemic'] = df['entries_selection'] / df['entries_pandemic'] - 1
-    df.rename(columns={'pretty_name': 'station', 'entries_selection': 'entries'}, inplace=True)
+    df['pct_ch_vs_2019'] = df['entries_selection'] / df['entries_2019'] - 1
+    df['%Ch vs. 2019'] = df["pct_ch_vs_2019"].apply(lambda f: "{0:.1%}".format(f))
+    df['pct_ch_vs_pandemic'] = df['entries_selection'] / df['entries_pandemic'] - 1
+    df['%Ch vs. pandemic'] = df["pct_ch_vs_pandemic"].apply(lambda f: "{0:.1%}".format(f))
+    df['Entries'] = df['entries_selection'].apply(lambda f: '{:,}'.format(f))
+    df.rename(columns={'pretty_name': 'Station'}, inplace=True)
+
     fig = px.scatter_mapbox(
         df,
         lat="Latitude",
         lon="Longitude",
-        hover_name="station",
-        hover_data={"entries": True, "Latitude": False, "Longitude": False,
-                    "pct_v_2019": True, "pct_v_pandemic": True,
-                    "entries_2019": False, "entries_pandemic": False},
-        size="entries", size_max=20,
-        color_continuous_scale=px.colors.sequential.YlGnBu, color="pct_v_2019",
+        hover_name="Station",
+        hover_data={"Entries": True, "Latitude": False, "Longitude": False,
+                    "%Ch vs. 2019": True, "%Ch vs. pandemic": True,
+                    "entries_2019": False, "entries_pandemic": False,
+                    "pct_ch_vs_2019": False, "pct_ch_vs_pandemic": False,
+                    "entries_selection": False},
+        size="entries_selection", size_max=20,
+        color_continuous_scale=px.colors.sequential.YlGnBu, color="pct_ch_vs_2019",
         zoom=10, height=480)
     fig.update_layout(mapbox_style="carto-darkmatter", mapbox_accesstoken=mapbox_token)
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, showlegend=False)
 
-    return dcc.Graph(id='fig_map', figure=fig)
+    return dcc.Graph(id='fig_map', animate=False, figure=fig)
 
 
 ######################################################################
@@ -783,13 +801,20 @@ def generate_content(filters=None):
             ])),
             dbc.Col(xl=1),  # gutter on xl and larger
         ]),
-
-        # dbc.Row([
-        #     dbc.Col(xl=1),  # gutter on xl and larger
-        #     dbc.Col([
-        #         html.Button(id='submit-button-state', className='btn btn-primary', n_clicks=0, children='Submit')
-        #         ])
-        #     ]),
+        dbc.Row([
+            dbc.Col(xl=1),  # gutter on xl and larger
+            dbc.Col([html.Div("Moving Average Days:")], xs=2),
+            dbc.Col(html.Div(
+                ma_input(value=7), id="ma_parent",
+            )),
+            dbc.Col(xl=1),  # gutter on xl and larger
+        ]),
+        dbc.Row([
+            dbc.Col(xl=1),  # gutter on xl and larger
+            dbc.Col([
+                html.Button(id='submit-button-state', className='btn btn-primary', n_clicks=0, children='Submit')
+                ])
+            ]),
         # dbc.Row([
         #     dbc.Col(xl=1),  # gutter on xl and larger
         #     dbc.Col(html.Div(id='output-state'))
@@ -822,14 +847,14 @@ def generate_content(filters=None):
         # headers
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(className="chart-header", children=['Entries by Date', ]),
+            dbc.Col(className="chart-header", children=['Entries and Exits by Date', ]),
             dbc.Col(className="chart-header", children=['Avg. Entries by Day of Week']),
             dbc.Col(className="chart-header", children=['Avg. Entries by Time of Day']),
             dbc.Col(xl=1),  # gutter on xl and larger
             ]),
         dbc.Row([
             dbc.Col(xl=1),  # gutter on xl and larger
-            dbc.Col(className="chart-header", id='fig1', children=["Moving Average:  ", ma_input(),]),
+            dbc.Col(className="chart-header", id='fig1'),
             dbc.Col(className="chart-header", id='fig2'),
             dbc.Col(className="chart-header", id='fig3'),
             dbc.Col(xl=1),  # gutter on xl and larger
@@ -892,22 +917,21 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
               Output('fig3', 'children'),
               Output('fig_table_parent', 'children'),
               Output('fig_map_parent', 'children'),
-              # Input('submit-button-state', 'n_clicks'),
-              Input('start-date-picker-single', 'date'),
-              Input('end-date-picker-single', 'date'),
-              Input('checklist-borough', 'value'),
-              Input('checklist-dow', 'value'),
-              Input('checklist-tod', 'value'),
-              Input('dropdown-station', 'value'),
-              Input('ma_value_input', 'value'),
+              Input('submit-button-state', 'n_clicks'),
+              State('start-date-picker-single', 'date'),
+              State('end-date-picker-single', 'date'),
+              State('checklist-borough', 'value'),
+              State('checklist-dow', 'value'),
+              State('checklist-tod', 'value'),
+              State('dropdown-station', 'value'),
+              State('ma_value_input', 'value'),
               )
-def update_output(startdate, enddate, boro, dow, tod, sta, ma):
+def update_output(n_clicks, startdate, enddate, boro, dow, tod, sta, ma):
 
     filters = defaultdict(str)
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
-    print(boro)
     if boro and len(boro) < 5:  # if all are set, don't set a filter
         filters['boro'] = list(map(lambda s: boromap[s], boro))
 
@@ -925,17 +949,17 @@ def update_output(startdate, enddate, boro, dow, tod, sta, ma):
 
     print(filters)
 
-    create_filter_current(con, filters, verbose=verbosity)
-    create_filter_pandemic(con, filters, verbose=verbosity)
-    create_filter_2019(con, filters, verbose=verbosity)
+    print(create_filter_current(con, filters, verbose=verbosity))
+    print(create_filter_pandemic(con, filters, verbose=verbosity))
+    print(create_filter_2019(con, filters, verbose=verbosity))
 
-    create_filter_current_daily(con, verbose=verbosity)
-    create_filter_pandemic_daily(con, verbose=verbosity)
-    create_filter_2019_daily(con, verbose=verbosity)
+    print(create_filter_current_daily(con, verbose=verbosity))
+    print(create_filter_pandemic_daily(con, verbose=verbosity))
+    print(create_filter_2019_daily(con, verbose=verbosity))
 
-    create_filter_current_summary(con, verbose=verbosity)
-    create_filter_pandemic_summary(con, verbose=verbosity)
-    create_filter_2019_summary(con, verbose=verbosity)
+    print(create_filter_current_summary(con, verbose=verbosity))
+    print(create_filter_pandemic_summary(con, verbose=verbosity))
+    print(create_filter_2019_summary(con, verbose=verbosity))
 
     avg_entries_daily = query_value(con, "select avg(entries) from filter_current_summary", verbose=verbosity)
     avg_entries_pandemic = query_value(con, "select avg(entries) from filter_pandemic_summary", verbose=verbosity)
@@ -953,7 +977,7 @@ def update_output(startdate, enddate, boro, dow, tod, sta, ma):
         text_panel_1(avg_entries_daily, avg_entries_pandemic, avg_entries_2019),
         text_panel_2(avg_entries_pandemic, avg_entries_2019),
         text_panel_3(avg_entries_2019),
-        ["Moving Average:  ", ma_input(ma), fig1(df_entries_by_date, ma)],
+        fig1(df_entries_by_date, ma),
         fig2(df_entries_by_dow),
         fig3(df_entries_by_tod),
         [fig_table(df_entries_by_station), html.Div(id='datatable-interactivity-container')],
@@ -961,9 +985,9 @@ def update_output(startdate, enddate, boro, dow, tod, sta, ma):
     ]
 
 # check e.g. q line this year
-# fix spacing of e.g. checkboxes
-# check update on Saturdays
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0')
+    app.run_server(debug=debug, host='0.0.0.0')
+
+# bronx, may 26 PELHAM BAY PARK aug 2 parkchester
