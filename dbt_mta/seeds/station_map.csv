@@ -235,7 +235,7 @@ CHAMBERS ST-ACE23,624,A36,IND,8th Av - Fulton St,Chambers St,M,A C E 2 3,Subway,
 CHAMBERS ST-JZ456,622,M21,BMT,Jamaica,Chambers St,M,J Z,Subway,40.713243,-74.003401,Brooklyn,Broad St,"Y"
 CHAUNCEY ST-JZ,93,J28,BMT,Jamaica,Chauncey St,Bk,J Z,Elevated,40.682893,-73.910456,Jamaica,Manhattan,"N"
 CHRISTOPHER ST-1,323,133,IRT,Broadway - 7Av,Christopher St-Sheridan Sq,M,1,Subway,40.733422,-74.002906,Uptown & The Bronx,Downtown,"Y"
-CHRISTOPHER ST-1-PATH,914,,,,PATH-Christopher St,M,PTH,,,,,,"Y"
+CHRISTOPHER ST-1-PATH,914,,,,Christopher St-PATH,M,PTH,,,,,,"Y"
 CHURCH AV-25,356,244,IRT,Nostrand,Church Av,Bk,2 5,Subway,40.650843,-73.949575,Manhattan,Flatbush,"N"
 CHURCH AV-BQ,44,D28,BMT,Broadway - Brighton,Church Av,Bk,B Q,Open Cut,40.650527,-73.962982,Manhattan,Brighton Beach & Coney Island,"N"
 CHURCH AV-FG,243,F27,IND,6th Av - Culver,Church Av,Bk,F G,Subway,40.644041,-73.979678,Manhattan,Coney Island,"N"

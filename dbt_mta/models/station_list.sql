@@ -7,7 +7,7 @@ select
     concat(map.stop_name, '-', map.daytime_routes, ' (', map.borough, ')') pretty_name,
     latitude,
     longitude,
-    borough_desc,
+    borough.borough_desc,
     -1 borough,
     map.cbd
 from stations

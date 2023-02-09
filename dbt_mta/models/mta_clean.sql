@@ -17,7 +17,7 @@ group by
     map.pretty_name,
     boro
 -- drop periods with no exits or entries
-having sum(mta_diff.entries) > 0 and sum(mta_diff.exits) > 0
+having sum(mta_diff.entries) > 0 or sum(mta_diff.exits) > 0
 
 {{ config(
   post_hook = "

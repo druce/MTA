@@ -15,13 +15,15 @@ select distinct
     EXIT_COUNTER
 from 
     {{ source('mta', 'mta_raw') }} mta_raw
-    -- merge some stations, note not using complex from station_map
+    -- might be more consistent to just use the complex
+    -- first cut I didn't have complex, merged stations that needed merging using station_level_override
     -- for some complexes like 624 cortlandt/chambers/park place/wtc, 53/51st information is lost
-    -- would be more consistent to just use the complex, I as maybe arbitrary, merged less if no ambiguity
+    -- I usually merged less if no ambiguity
     left outer join {{ref('station_label_override')}} slo on slo.station_src = CONCAT(STATION, '-', LINENAME)
+    -- just wanted more legible station ID
     left outer join {{ref('division_label_override')}} dlo on dlo.division_src = division
     -- where "DESC" <> 'RECOVR AUD'
-    -- skip staten island, for some reason only 2 stations reflected in CSVs
+    -- skip staten island, only 2 stations reflected in CSVs for some reason
 where
     division not in ('SRT')
     -- skip NJ PATH stations but keep NYC
@@ -32,5 +34,3 @@ where
 -- check a week with no recovr aud or weirdness, match exactly
 -- clone repo, grep recovr aud
 -- find logic with the dropping records, dupe exactly
--- fix cosmetics and push
--- add exits, legends, moving average

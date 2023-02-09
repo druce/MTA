@@ -929,6 +929,15 @@ app.layout = html.Div(generate_content(), id='div_toplevel')
 def update_output(n_clicks, startdate, enddate, boro, dow, tod, sta, ma):
 
     filters = defaultdict(str)
+
+    # might be better to give an error, this doesn't update the widget
+    # startcheck = datetime.strptime(startdate, "%Y-%m-%d").date()
+    # endcheck = datetime.strptime(enddate,  "%Y-%m-%d").date()
+    # delta = endcheck - startcheck
+    # if delta.days <= 0:
+    #     print("bad date, %s %s" % (startdate, enddate))
+    #     enddate = datetime.now().strftime("%Y-%m-%d")
+    
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
