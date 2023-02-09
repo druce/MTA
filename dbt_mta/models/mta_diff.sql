@@ -21,6 +21,7 @@
     SET
         entries = CASE WHEN abs(entries) < 10000 AND hours_difference <= 24 THEN abs(entries) ELSE 0 END,
         exits = CASE WHEN abs(exits) < 10000 AND hours_difference <= 24 THEN abs(exits) ELSE 0 END;
+") }}
 
 -- select * from mta_diff
     -- drop rows where we are seeing negative numbers or more than 1 click per second
