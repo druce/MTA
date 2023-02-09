@@ -26,7 +26,7 @@ from
     -- skip staten island, only 2 stations reflected in CSVs for some reason
 where
     division not in ('SRT')
-    -- skip NJ PATH stations but keep NYC
+    -- skip NJ PATH stations but keep NYC - added J as borough in station_map
     and mta_raw.station not in ('CITY / BUS','EXCHANGE PLACE','GROVE STREET','HARRISON','JOURNAL SQUARE','LACKAWANNA','NEWARK BM BW','NEWARK C','NEWARK HM HE','NEWARK HW BMEBE','PAVONIA/NEWPORT')
     -- start 1/1/2019
     and date_part('year', DATE) > 2018

@@ -1,8 +1,8 @@
 select
     -- split into date and integer hour
     date_trunc('day', date_time) date,
-    -- truncate hour down to nearest multiple of 4
-    4 * floor(date_part('hour', date_time) / 4) as hour,
+    -- round hour = minutes/60 to nearest multiple of 4
+    4 * round((date_part('hour', date_time)::float + date_part('minute', date_time)::float/60) / 4)  as hour,
     -- pretty name, borough from station_list
     map.pretty_name station,
     map.borough boro,

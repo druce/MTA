@@ -937,7 +937,7 @@ def update_output(n_clicks, startdate, enddate, boro, dow, tod, sta, ma):
     # if delta.days <= 0:
     #     print("bad date, %s %s" % (startdate, enddate))
     #     enddate = datetime.now().strftime("%Y-%m-%d")
-    
+
     filters['startdate'] = startdate
     filters['enddate'] = enddate
 
@@ -999,4 +999,6 @@ def update_output(n_clicks, startdate, enddate, boro, dow, tod, sta, ma):
 if __name__ == '__main__':
     app.run_server(debug=debug, host='0.0.0.0')
 
+# turn off legend on map
+# check data on greenpoint, nassau, main st or 86 st 456
 # bronx, may 26 PELHAM BAY PARK aug 2 parkchester
